@@ -1,0 +1,19 @@
+:host { display: block; min-height: 100vh; background: #f5f6f2; color: #172923; }
+.shell { max-width: 1000px; margin: auto; padding: 32px 24px; }
+.header { display: flex; align-items: center; gap: 14px; font-weight: 650; }
+.mark { width: 40px; height: 40px; display: grid; place-items: center; color: white; background: #174938; border-radius: 12px; }
+.phase { margin-left: auto; font-size: 12px; letter-spacing: .1em; color: #577d69; }
+.panel { margin: 100px auto 0; padding: clamp(30px, 6vw, 68px); max-width: 730px; background: white; border: 1px solid #dae5dc; border-radius: 24px; box-shadow: 0 18px 55px #173a2510; }
+.eyebrow { color: #347855; letter-spacing: .15em; font-size: 12px; font-weight: 700; }
+h1 { font-size: clamp(32px, 5vw, 54px); line-height: 1.07; letter-spacing: -.04em; margin: 18px 0; }
+.description { line-height: 1.7; color: #52675b; max-width: 600px; }
+form { max-width: 390px; display: grid; gap: 10px; margin-top: 35px; }
+label { font-size: 14px; font-weight: 600; margin-top: 8px; }
+input { font: inherit; border: 1px solid #bdcfc1; border-radius: 9px; padding: 12px; }
+input:focus { outline: 2px solid #338b62; outline-offset: 2px; }
+button { font: inherit; cursor: pointer; background: #174938; color: white; border: 0; border-radius: 9px; padding: 13px 18px; margin-top: 10px; font-weight: 650; }
+button:disabled { opacity: .6; cursor: wait; }
+.secondary { background: #e6f0e9; color: #174938; }
+.success { padding: 16px; border-radius: 10px; background: #e6f4e9; margin-top: 28px; }
+.error { color: #a72e2e; font-size: 14px; }
+footer { margin-top: 70px; text-align: center; font-size: 13px; color: #718477; }

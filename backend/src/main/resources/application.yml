@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: customer-support-agent
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/support_agent}
+    username: ${DATABASE_USER:support_agent}
+    password: ${DATABASE_PASSWORD}
+  flyway:
+    enabled: true
+  sql:
+    init:
+      mode: never
+server:
+  error:
+    include-message: never
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+app:
+  auth:
+    username: ${DEMO_USERNAME}
+    password: ${DEMO_PASSWORD}
