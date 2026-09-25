@@ -36,6 +36,27 @@ export interface CasePage {
   size: number;
 }
 
+export interface ProposalSource {
+  key: string;
+  documentId: string;
+  documentTitle: string;
+  chunkOrdinal: number;
+  content: string;
+  similarity: number;
+}
+
+export interface ResolutionProposal {
+  id: string;
+  caseId: string;
+  status: 'READY_FOR_REVIEW' | 'INSUFFICIENT_EVIDENCE';
+  answer: string;
+  generationModel: string;
+  embeddingModel: string;
+  createdBy: string;
+  createdAt: string;
+  sources: ProposalSource[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class CaseApiService {
   private readonly http = inject(HttpClient);
@@ -59,6 +80,18 @@ export class CaseApiService {
 
   changeStatus(authorization: string, id: string, status: CaseStatus, note: string) {
     return this.http.patch<CaseDetail>(`${this.url}/${id}/status`, { status, note }, {
+      headers: this.headers(authorization)
+    });
+  }
+
+  proposals(authorization: string, caseId: string) {
+    return this.http.get<ResolutionProposal[]>(`${this.url}/${caseId}/proposals`, {
+      headers: this.headers(authorization)
+    });
+  }
+
+  generateProposal(authorization: string, caseId: string) {
+    return this.http.post<ResolutionProposal>(`${this.url}/${caseId}/proposals`, {}, {
       headers: this.headers(authorization)
     });
   }

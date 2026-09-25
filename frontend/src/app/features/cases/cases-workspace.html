@@ -64,6 +64,38 @@
           </form>
         }
 
+        <section class="proposals" aria-label="Propostas de resposta">
+          <h4>Propostas de resposta</h4>
+          <p class="muted">Rascunhos com fontes para revisão humana. Nenhuma resposta é enviada automaticamente.</p>
+          @if (detail.supportCase.status !== 'RESOLVED' && detail.supportCase.status !== 'CLOSED') {
+            <button type="button" [disabled]="busy()" (click)="generateProposal()">
+              {{ busy() ? 'Gerando…' : 'Gerar proposta' }}
+            </button>
+          }
+          @if (proposals().length) {
+            <label for="proposal-select">Histórico de propostas</label>
+            <select id="proposal-select" [ngModel]="activeProposal()?.id"
+              (ngModelChange)="activeProposal.set(proposals().find(p => p.id === $event) ?? null)">
+              @for (proposal of proposals(); track proposal.id) {
+                <option [value]="proposal.id">{{ proposal.createdAt | date:'dd/MM/yyyy HH:mm' }} · {{ proposal.status === 'READY_FOR_REVIEW' ? 'Revisão pendente' : 'Evidências insuficientes' }}</option>
+              }
+            </select>
+          }
+          @if (activeProposal(); as proposal) {
+            <p class="badge">{{ proposal.status === 'READY_FOR_REVIEW' ? 'Aguardando revisão humana' : 'Evidências insuficientes' }}</p>
+            <p class="description">{{ proposal.answer }}</p>
+            @if (proposal.sources.length) {
+              <h4>Fontes utilizadas</h4>
+              <ol class="timeline">
+                @for (source of proposal.sources; track source.key) {
+                  <li><strong>[{{ source.key }}] {{ source.documentTitle }} · trecho {{ source.chunkOrdinal + 1 }}</strong>
+                    <p>{{ source.content }}</p></li>
+                }
+              </ol>
+            }
+          }
+        </section>
+
         <h4>Histórico</h4>
         <ol class="timeline">
           @for (event of detail.events; track event.id) {

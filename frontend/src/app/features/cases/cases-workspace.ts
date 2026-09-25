@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, inject, Input, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { CaseApiService, CaseDetail, CasePage, CaseStatus, SupportCase } from './case-api.service';
+import { CaseApiService, CaseDetail, CasePage, CaseStatus, ResolutionProposal, SupportCase } from './case-api.service';
 
 @Component({
   selector: 'app-cases-workspace',
@@ -21,6 +21,8 @@ export class CasesWorkspace implements OnInit {
   protected readonly description = signal('');
   protected readonly status = signal<CaseStatus | ''>('');
   protected readonly note = signal('');
+  protected readonly proposals = signal<ResolutionProposal[]>([]);
+  protected readonly activeProposal = signal<ResolutionProposal | null>(null);
   protected readonly busy = signal(false);
   protected readonly error = signal('');
 
@@ -44,8 +46,34 @@ export class CasesWorkspace implements OnInit {
   protected open(item: SupportCase): void {
     this.error.set('');
     this.api.get(this.authorization, item.id).subscribe({
-      next: (detail) => { this.selected.set(detail); this.status.set(''); this.note.set(''); },
+      next: (detail) => { this.selected.set(detail); this.status.set(''); this.note.set(''); this.proposals.set([]); this.activeProposal.set(null); this.loadProposals(item.id); },
       error: () => this.error.set('Não foi possível abrir este caso.')
+    });
+  }
+
+  private loadProposals(caseId: string): void {
+    this.api.proposals(this.authorization, caseId).subscribe({
+      next: (items) => {
+        if (this.selected()?.supportCase.id !== caseId) return;
+        this.proposals.set(items);
+        this.activeProposal.set(items[0] ?? null);
+      },
+      error: () => this.error.set('Não foi possível carregar as propostas.')
+    });
+  }
+
+  protected generateProposal(): void {
+    const caseId = this.selected()?.supportCase.id;
+    if (!caseId) return;
+    this.busy.set(true); this.error.set('');
+    this.api.generateProposal(this.authorization, caseId).subscribe({
+      next: (proposal) => {
+        this.busy.set(false);
+        if (this.selected()?.supportCase.id !== caseId) return;
+        this.proposals.update(items => [proposal, ...items]);
+        this.activeProposal.set(proposal);
+      },
+      error: () => { this.busy.set(false); this.error.set('Não foi possível gerar a proposta. Atualize o caso e tente novamente.'); }
     });
   }
 

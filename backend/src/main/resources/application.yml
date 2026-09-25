@@ -28,3 +28,7 @@ app:
     provider: ${EMBEDDING_PROVIDER:ollama}
     base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
     model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text:v1.5}
+  generation:
+    provider: ${GENERATION_PROVIDER:ollama}
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    model: ${OLLAMA_GENERATION_MODEL:qwen3:1.7b}

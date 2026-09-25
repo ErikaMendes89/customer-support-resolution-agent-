@@ -30,3 +30,8 @@ button:disabled { opacity: .55; cursor: default; }
 .empty { text-align: center; padding: 70px 10px; color: #63786a; }
 .error { padding: 13px; background: #fdeaea; color: #9b2525; border-radius: 8px; }
 @media (max-width: 720px) { .columns { grid-template-columns: 1fr; } .heading { align-items: start; flex-direction: column; } }
+
+.proposals { border-top: 1px solid #d8e0e5; margin-top: 2rem; padding-top: 1rem; }
+.proposals select { width: 100%; margin: .75rem 0; }
+.proposals .description { white-space: pre-wrap; overflow-wrap: anywhere; }
+.proposals .timeline p { white-space: pre-wrap; overflow-wrap: anywhere; }
