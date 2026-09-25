@@ -12,6 +12,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.web.FilterChainProxy;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @SpringBootTest(properties = {"app.auth.username=demo", "app.auth.password=test-password",
         "app.auth.secondary-username=demo-horizonte", "app.auth.secondary-password=test-password-secondary"})
@@ -19,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class FoundationIntegrationTests {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired FilterChainProxy securityFilters;
 
     @Test
     void databaseHasPgvectorExtension() {
@@ -41,5 +46,13 @@ class FoundationIntegrationTests {
     @Test
     void healthIsPublic() throws Exception {
         mvc.perform(get("/actuator/health")).andExpect(status().isOk());
+    }
+
+    @Test
+    void securityChainUsesCookieBasedCsrf() {
+        CsrfFilter filter = securityFilters.getFilters("/api/v1/cases").stream()
+                .filter(CsrfFilter.class::isInstance).map(CsrfFilter.class::cast).findFirst().orElseThrow();
+        assertThat(ReflectionTestUtils.getField(filter, "tokenRepository"))
+                .isInstanceOf(CookieCsrfTokenRepository.class);
     }
 }
