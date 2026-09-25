@@ -16,6 +16,9 @@ button:disabled { opacity: .6; cursor: wait; }
 .secondary { background: #e6f0e9; color: #174938; }
 .session { display: flex; justify-content: flex-end; align-items: center; gap: 16px; font-size: 13px; margin-top: 18px; }
 .session button { margin: 0; padding: 8px 15px; }
+.sections { display: flex; gap: 8px; margin-top: 26px; border-bottom: 1px solid #cddbcf; }
+.sections button { margin: 0 0 -1px; background: transparent; color: #52675b; border-radius: 8px 8px 0 0; }
+.sections button.current { background: #174938; color: white; }
 .success { padding: 16px; border-radius: 10px; background: #e6f4e9; margin-top: 28px; }
 .error { color: #a72e2e; font-size: 14px; }
 footer { margin-top: 70px; text-align: center; font-size: 13px; color: #718477; }

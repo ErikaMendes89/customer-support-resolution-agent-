@@ -1,0 +1,29 @@
+.workspace { margin: 45px 0; }
+.heading { display: flex; justify-content: space-between; align-items: end; gap: 18px; }
+h2 { font-size: 32px; margin: 4px 0; letter-spacing: -.03em; }
+h3 { margin: 0 0 18px; font-size: 21px; }
+.eyebrow { color: #347855; letter-spacing: .1em; font-size: 12px; font-weight: 700; }
+.intro { color: #52675b; line-height: 1.5; margin: 16px 0 24px; }
+.count, .muted, small { color: #63786a; font-size: 13px; }
+.columns { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 18px; align-items: start; }
+.left, .right { display: grid; gap: 18px; }
+.card { padding: 26px; background: white; border: 1px solid #dae5dc; border-radius: 16px; }
+form { display: grid; gap: 10px; }
+label { font-size: 13px; font-weight: 600; }
+input, textarea { width: 100%; font: inherit; border: 1px solid #bdcfc1; border-radius: 8px; padding: 10px; }
+textarea { resize: vertical; }
+button { font: inherit; cursor: pointer; background: #174938; color: white; border: 0; border-radius: 8px; padding: 10px 14px; font-weight: 600; }
+button:disabled { opacity: .55; cursor: default; }
+.secondary { background: #e6f0e9; color: #174938; }
+.doc-row { display: flex; flex-direction: column; gap: 6px; width: 100%; text-align: left; background: #f4f7f3; color: #172923; margin: 7px 0; }
+.doc-row span { color: #4f7360; font-size: 12px; }
+.pagination { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; margin-top: 20px; }
+.pagination button { padding: 8px; }
+.hit { border-top: 1px solid #e1e9e1; padding: 18px 0; }
+.hit p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; margin-bottom: 0; }
+.link { background: transparent; color: #1c7046; text-align: left; padding: 0; }
+.score { float: right; color: #63786a; font-size: 12px; }
+.detail-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.danger { background: #f9e9e9; color: #a92b2b; }
+.error { padding: 13px; background: #fdeaea; color: #9b2525; border-radius: 8px; }
+@media (max-width: 720px) { .columns { grid-template-columns: 1fr; } .heading { align-items: start; flex-direction: column; } .score { float: none; display: block; margin-top: 8px; } }

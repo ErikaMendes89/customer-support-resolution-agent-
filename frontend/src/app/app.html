@@ -2,7 +2,7 @@
   <header class="header">
     <span class="mark">CS</span>
     <span>Customer Support Resolution Agent</span>
-    <span class="phase">FASE 1 · CASOS</span>
+    <span class="phase">FASE 2 · CONHECIMENTO</span>
   </header>
 
   @if (authorization(); as authHeader) {
@@ -10,7 +10,15 @@
       <span>{{ authenticatedAs() }} · {{ organizationName() }}</span>
       <button class="secondary" type="button" (click)="logout()">Sair</button>
     </div>
-    <app-cases-workspace [authorization]="authHeader" [organizationName]="organizationName()" />
+    <nav class="sections" aria-label="Seções">
+      <button type="button" [class.current]="view() === 'cases'" (click)="view.set('cases')">Casos</button>
+      <button type="button" [class.current]="view() === 'knowledge'" (click)="view.set('knowledge')">Conhecimento</button>
+    </nav>
+    @if (view() === 'cases') {
+      <app-cases-workspace [authorization]="authHeader" [organizationName]="organizationName()" />
+    } @else {
+      <app-knowledge-workspace [authorization]="authHeader" [organizationName]="organizationName()" />
+    }
   } @else {
   <section class="panel">
     <p class="eyebrow">CENTRAL DE SUPORTE</p>

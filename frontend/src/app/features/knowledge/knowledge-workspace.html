@@ -1,0 +1,81 @@
+<div class="workspace">
+  <div class="heading">
+    <div><p class="eyebrow">{{ organizationName }}</p><h2>Base de conhecimento</h2></div>
+    <span class="count">{{ documents()?.total ?? 0 }} documento(s)</span>
+  </div>
+  <p class="intro">Cadastre texto ou selecione um arquivo .txt/.md. A busca mostra os trechos e as fontes; a geração de respostas entra na próxima fase.</p>
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+
+  <div class="columns">
+    <div class="left">
+      <section class="card">
+        <h3>Novo documento</h3>
+        <form (ngSubmit)="ingest()">
+          <label for="doc-file">Arquivo de texto (opcional)</label>
+          <input id="doc-file" type="file" accept=".txt,.md,text/plain,text/markdown" (change)="readFile($event)" />
+          <label for="doc-title">Título</label>
+          <input id="doc-title" name="title" required minlength="3" maxlength="160"
+            [ngModel]="title()" (ngModelChange)="title.set($event)" />
+          <label for="doc-content">Conteúdo</label>
+          <textarea id="doc-content" name="content" required minlength="20" maxlength="12000" rows="7"
+            [ngModel]="content()" (ngModelChange)="content.set($event)"></textarea>
+          <small>{{ content().length }} / 12.000 caracteres</small>
+          <button type="submit" [disabled]="busy()">{{ busy() ? 'Processando…' : 'Indexar documento' }}</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h3>Documentos</h3>
+        @for (doc of documents()?.items ?? []; track doc.id) {
+          <button type="button" class="doc-row" (click)="open(doc.id)">
+            <strong>{{ doc.title }}</strong><span>{{ doc.chunkCount }} trecho(s) · {{ doc.createdAt | date:'dd/MM/yyyy' }}</span>
+          </button>
+        } @empty { <p class="muted">Ainda não há documentos nesta organização.</p> }
+        @if (documents(); as page) {
+          <nav class="pagination" aria-label="Páginas de documentos">
+            <button type="button" class="secondary" [disabled]="page.page === 0" (click)="load(page.page - 1)">Anterior</button>
+            <span>{{ page.page + 1 }} / {{ Math.ceil(page.total / page.size) || 1 }}</span>
+            <button type="button" class="secondary" [disabled]="(page.page + 1) * page.size >= page.total"
+              (click)="load(page.page + 1)">Próxima</button>
+          </nav>
+        }
+      </section>
+    </div>
+
+    <div class="right">
+      <section class="card">
+        <h3>Buscar trechos</h3>
+        <form (ngSubmit)="search()" class="search-form">
+          <label for="query">Pergunta ou assunto</label>
+          <input id="query" name="query" required minlength="3" maxlength="500"
+            [ngModel]="query()" (ngModelChange)="query.set($event)" />
+          <button type="submit" [disabled]="busy()">Buscar</button>
+        </form>
+        @if (results(); as hits) {
+          <p class="muted">{{ hits.length }} trecho(s) encontrados. Similaridade não equivale a resposta correta.</p>
+          @for (hit of hits; track hit.documentId + ':' + hit.chunkOrdinal) {
+            <article class="hit">
+              <button type="button" class="link" (click)="open(hit.documentId)">
+                {{ hit.documentTitle }} · trecho {{ hit.chunkOrdinal + 1 }}
+              </button>
+              <span class="score">Similaridade {{ hit.similarity | number:'1.2-2' }}</span>
+              <p>{{ hit.content }}</p>
+            </article>
+          } @empty { <p class="muted">Nenhum trecho indexado para esta organização e este modelo.</p> }
+        }
+      </section>
+
+      @if (selected(); as detail) {
+        <section class="card">
+          <div class="detail-heading"><h3>{{ detail.document.title }}</h3>
+            <button type="button" class="danger" [disabled]="busy()" (click)="delete(detail.document)">Excluir</button>
+          </div>
+          <p class="muted">{{ detail.document.embeddingModel }} · {{ detail.document.chunkCount }} trechos · por {{ detail.document.createdBy }}</p>
+          @for (chunk of detail.chunks; track chunk.ordinal) {
+            <article class="hit"><strong>Trecho {{ chunk.ordinal + 1 }}</strong><p>{{ chunk.content }}</p></article>
+          }
+        </section>
+      }
+    </div>
+  </div>
+</div>

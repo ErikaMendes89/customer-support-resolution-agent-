@@ -2,13 +2,14 @@
 
 Uma aplicação de portfólio para acompanhar casos de suporte e, nas próximas fases, propor resoluções fundamentadas em documentos, com revisão humana.
 
-**Estado atual: fase 1 — casos e histórico.** A API, a autenticação de demonstração, o frontend, a migração do PostgreSQL/pgvector e o acompanhamento de casos por organização estão implementados. RAG, geração por modelo e revisão humana ainda não estão implementados.
+**Estado atual: fase 2 — base de conhecimento e recuperação.** Casos e histórico coexistem com cadastro de textos, divisão em trechos, geração de embeddings e busca vetorial por organização. A aplicação ainda não gera respostas nem executa ações de agente; revisão humana e avaliações vêm nas próximas fases.
 
 ## O que existe agora
 
 - API Spring Boot com duas contas de demonstração separadas por organização, endpoints de casos protegidos por HTTP Basic e `GET /actuator/health` público.
 - Angular para criar casos, listar, consultar detalhes, mudar estados e ler o histórico da organização autenticada.
 - PostgreSQL 17 com pgvector, iniciado por Docker Compose; Flyway versiona a extensão `vector`, organizações fictícias, casos e eventos.
+- Base de conhecimento com textos de até 12 mil caracteres, embeddings locais pelo Ollama, fontes por documento/trecho e exclusão de documentos.
 - CI que executa testes de integração do backend contra PostgreSQL/pgvector e compila o frontend.
 
 As duas contas servem apenas à demonstração local. Seus nomes e senhas são configurados por ambiente, não ficam no repositório, e as senhas são codificadas em memória pelo backend. A interface guarda a credencial de acesso somente em memória enquanto estiver aberta; sair remove essa credencial da interface. **HTTP Basic deve ser usado apenas em localhost ou sobre HTTPS.** Ainda não há gestão de usuários persistentes nem papéis completos. O isolamento dos casos é feito pelo identificador da organização associado à conta autenticada, e não por um identificador fornecido pelo cliente.
@@ -33,12 +34,13 @@ Não haverá execução automática de reembolsos, cancelamentos ou alterações
 | --- | --- | --- |
 | Backend | Java 17, Spring Boot 4.1.1 | API, segurança, regras de estado e transações |
 | Frontend | Angular 21, TypeScript | Interface de casos e histórico |
-| Banco | PostgreSQL 17, pgvector 0.8.1 | Casos, eventos e extensão vetorial para a fase futura |
+| Banco | PostgreSQL 17, pgvector 0.8.1 | Casos, eventos, documentos e busca vetorial |
+| Embeddings | Ollama + `nomic-embed-text:v1.5` | Vetores locais com 768 dimensões |
 | Migrações | Flyway | Esquema versionado |
 | Build | Maven Wrapper, npm | Builds reproduzíveis |
 | CI | GitHub Actions | Integração do backend e build do frontend |
 
-Nenhum modelo de linguagem, provedor de embeddings ou dimensão de vetores foi escolhido ainda: essa escolha depende do fluxo e dos testes da fase de conhecimento.
+O modelo de embeddings é configurável por ambiente, mas a coluna vetorial da fase 2 exige **768 dimensões**. O modelo de geração de respostas ainda não foi escolhido. Os testes de integração usam vetores fictícios e determinísticos para verificar armazenamento, ranking e isolamento; eles não medem qualidade semântica do Ollama.
 
 ## Arquitetura modular
 
@@ -48,29 +50,43 @@ O backend parte de um monólito modular. Cada capacidade tem suas próprias regr
 | --- | --- | --- |
 | `identity` | Demonstração | Duas contas e o contexto da organização autenticada |
 | `cases` | Implementado | Casos, transições de estado, consulta e histórico |
-| `knowledge` | Planejado | Documentos, trechos, embeddings e busca |
+| `knowledge` | Implementado | Documentos de texto, trechos, embeddings e busca |
 | `resolution` | Planejado | Tentativas, orquestração e propostas |
 | `review` | Planejado | Aprovação, edição e rejeição humanas |
 | `audit` | Planejado | Registro de decisões relevantes |
 
-As regras de estado ficam no domínio; as transações ficam na camada de aplicação; o repositório usa JDBC com consultas explícitas. Um caso e seu evento são gravados na mesma transação. A alteração de estado bloqueia a linha do caso até registrar o evento, para impedir duas transições simultâneas baseadas no mesmo estado. As consultas e alterações incluem o identificador da organização autenticada. A chave estrangeira composta dos eventos impede associar um evento a um caso de outra organização.
+As regras de estado ficam no domínio; as transações ficam na camada de aplicação; os repositórios usam JDBC com consultas explícitas. Um caso e seu evento são gravados na mesma transação. A alteração de estado bloqueia a linha do caso até registrar o evento. As consultas e alterações incluem a organização autenticada. As chaves estrangeiras compostas dos eventos e trechos impedem associá-los a registros de outra organização.
+
+Na ingestão, o texto é dividido em trechos de até 900 caracteres Unicode, com sobreposição de aproximadamente 120. Os embeddings são gerados **antes** da transação; documento e trechos são inseridos juntos, de modo que uma falha do modelo não deixe um documento parcial visível. O hash SHA-256 evita duplicar o mesmo conteúdo para a mesma organização e modelo. A busca filtra a organização e o modelo antes de calcular a distância de cosseno no pgvector; a primeira versão usa ranking exato para priorizar a consistência dos resultados. Índices aproximados como HNSW serão avaliados com volume e métricas de recall.
 
 ```text
 backend/
   src/main/java/dev/erikamendes/support/
     identity/          # Segurança e contexto da organização
     cases/             # Domínio, aplicação, infraestrutura e API
+    knowledge/         # Ingestão, embeddings e busca
   src/main/resources/db/migration/
     V1__enable_vector.sql
     V2__cases_and_history.sql
+    V3__knowledge_documents.sql
 frontend/src/app/features/cases/  # Interface de casos
+frontend/src/app/features/knowledge/  # Documentos e busca
 compose.yaml           # PostgreSQL/pgvector local
 .github/workflows/ci.yml
 ```
 
 ## Como executar localmente
 
-Pré-requisitos: Java 17, Node.js 22.12+ ou 24, npm e Docker com Compose. O projeto inclui Maven Wrapper; não é necessário instalar Maven globalmente.
+Pré-requisitos: Java 17, Node.js 22.12+ ou 24, npm, Docker com Compose e Ollama para cadastrar documentos ou buscar. O projeto inclui Maven Wrapper; não é necessário instalar Maven globalmente.
+
+Prepare o modelo local antes de usar a base de conhecimento:
+
+```bash
+ollama pull nomic-embed-text:v1.5
+ollama serve
+```
+
+Se o Ollama já estiver ativo, basta executar o `pull`. Use `OLLAMA_BASE_URL` e `OLLAMA_EMBEDDING_MODEL` no `.env` se sua instalação estiver em outro endereço ou usar outro modelo de **768 dimensões**. Trocar de modelo não converte vetores já cadastrados: documentos antigos ficam armazenados, mas apenas o modelo atual é consultado. Reimporte ou reindexe antes de usar os dados antigos em busca.
 
 1. Copie `.env.example` para `.env` na raiz e substitua as três senhas por valores locais. Se já tiver um `.env` da fase 0, acrescente `DEMO_SECONDARY_USERNAME` e `DEMO_SECONDARY_PASSWORD`. Nunca faça commit de `.env`.
 2. Inicie o banco a partir da raiz:
@@ -99,7 +115,7 @@ Pré-requisitos: Java 17, Node.js 22.12+ ou 24, npm e Docker com Compose. O proj
    npm start
    ```
 
-5. Abra `http://localhost:4200` e entre com uma das duas contas do `.env`. Crie um caso e faça uma transição de estado. Saia e entre com a outra conta para conferir que os casos não aparecem ali. O servidor de desenvolvimento do Angular encaminha `/api` para `http://localhost:8080`.
+5. Abra `http://localhost:4200` e entre com uma das duas contas do `.env`. Em **Casos**, crie um caso e acompanhe seu histórico. Em **Conhecimento**, cole texto ou selecione um `.txt`/`.md`, indexe e busque trechos. Saia e entre com a outra conta para conferir que casos e documentos não aparecem ali. O servidor de desenvolvimento do Angular encaminha `/api` para `http://localhost:8080`.
 
 Também é possível conferir a API diretamente:
 
@@ -110,7 +126,7 @@ curl -u 'demo:SUA_SENHA_LOCAL' http://localhost:8080/api/v1/me
 
 O valor `demo` no segundo comando deve ser substituído caso você altere `DEMO_USERNAME`.
 
-### Contrato da API da fase 1
+### Contrato da API
 
 | Método e rota | Resultado |
 | --- | --- |
@@ -120,8 +136,15 @@ O valor `demo` no segundo comando deve ser substituído caso você altere `DEMO_
 | `GET /api/v1/cases?page=0&size=20` | Lista paginada da organização atual; `size` vai de 1 a 50 |
 | `GET /api/v1/cases/{id}` | Caso e eventos em ordem cronológica |
 | `PATCH /api/v1/cases/{id}/status` | Muda o estado; recebe `status` e `note` opcional |
+| `POST /api/v1/documents` | Cadastra texto; recebe `title` e `content`; repetição do mesmo conteúdo/modelo retorna o documento existente |
+| `GET /api/v1/documents?page=0&size=20` | Lista documentos da organização |
+| `GET /api/v1/documents/{id}` | Metadados e trechos do documento |
+| `DELETE /api/v1/documents/{id}` | Exclui documento e trechos da organização |
+| `POST /api/v1/knowledge/search` | Recebe `query` e `topK` (1 a 10); retorna trechos, fonte e similaridade |
 
-As escritas exigem autenticação e o cabeçalho `X-XSRF-TOKEN` correspondente ao cookie `XSRF-TOKEN`. O Angular gerencia esse cabeçalho após chamar a rota de CSRF. Um ID inexistente ou de outra organização retorna `404`; uma transição proibida retorna `409`. O cliente não envia `organizationId` para determinar o escopo de uma operação.
+As requisições POST, PATCH e DELETE exigem autenticação e o cabeçalho `X-XSRF-TOKEN` correspondente ao cookie `XSRF-TOKEN`. O Angular gerencia esse cabeçalho após chamar a rota de CSRF. Um ID inexistente ou de outra organização retorna `404`; uma transição proibida retorna `409`. O cliente não envia `organizationId` para determinar o escopo de uma operação. Falha do serviço de embeddings retorna `503` sem persistir o documento.
+
+A interface lê arquivos de texto no navegador e envia seu conteúdo como JSON. Não há processamento de PDF, Word, HTML, imagens ou arquivos binários; não há resposta gerada por LLM nesta fase. A ingestão é síncrona e limitada a 12 mil caracteres, para manter o tempo de espera controlado. O modelo local precisa estar acessível ao backend.
 
 Transições permitidas:
 
@@ -135,13 +158,13 @@ Transições permitidas:
 
 ## Testes e CI
 
-Com o banco ativo e as variáveis de `.env` carregadas, execute `cd backend && ./mvnw verify`. Os testes de integração verificam migrações, autenticação, proteção CSRF, transições, histórico e isolamento entre duas organizações. Os testes sobrescrevem as credenciais de demonstração com valores descartáveis.
+Com o banco ativo e as variáveis de `.env` carregadas, execute `cd backend && ./mvnw verify`. Os testes de integração verificam migrações, autenticação, CSRF, casos e histórico, cadastro idempotente, busca vetorial, exclusão e isolamento entre duas organizações. Os testes de documentos substituem o Ollama por vetores controlados; nenhum serviço externo é necessário para `verify`.
 
 Para conferir o frontend, execute `cd frontend && npm ci && npm run build`. A CI executa ambos os builds em tarefas separadas. O banco dos testes é efêmero e não contém dados reais.
 
 ## Segurança e limites previstos
 
-- Casos e eventos são segregados por organização nas consultas e alterações. A busca documental também terá esse requisito.
+- Casos, documentos e trechos são segregados por organização nas consultas e alterações.
 - Documentos e mensagens recuperados serão tratados como dados, nunca como instruções para o agente.
 - Respostas sem evidência suficiente deverão sinalizar incerteza e seguir para revisão.
 - Ações sensíveis exigirão permissão específica e aprovação humana.
@@ -156,7 +179,7 @@ O conjunto de avaliação terá perguntas com respostas conhecidas, informaçõe
 
 - [x] Fase 0: fundação Spring Boot/Angular, PostgreSQL/pgvector, Flyway, autenticação de demonstração e CI.
 - [x] Fase 1: cadastro de casos, estados, histórico e isolamento por organização.
-- [ ] Fase 2: ingestão e recuperação de documentos.
+- [x] Fase 2: ingestão de texto, trechos, embeddings e busca vetorial com fontes.
 - [ ] Fase 3: propostas de resolução com fontes.
 - [ ] Fase 4: revisão humana e trilha de decisões.
 - [ ] Fase 5: avaliação e testes de segurança do agente.

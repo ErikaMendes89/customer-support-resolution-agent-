@@ -24,3 +24,7 @@ app:
     password: ${DEMO_PASSWORD}
     secondary-username: ${DEMO_SECONDARY_USERNAME}
     secondary-password: ${DEMO_SECONDARY_PASSWORD}
+  embeddings:
+    provider: ${EMBEDDING_PROVIDER:ollama}
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text:v1.5}

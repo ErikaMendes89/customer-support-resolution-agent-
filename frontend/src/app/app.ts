@@ -3,10 +3,11 @@ import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { map, switchMap } from 'rxjs';
 import { CasesWorkspace } from './features/cases/cases-workspace';
+import { KnowledgeWorkspace } from './features/knowledge/knowledge-workspace';
 
 @Component({
   selector: 'app-root',
-  imports: [FormsModule, CasesWorkspace],
+  imports: [FormsModule, CasesWorkspace, KnowledgeWorkspace],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
@@ -17,6 +18,7 @@ export class App {
   protected readonly authenticatedAs = signal<string | null>(null);
   protected readonly organizationName = signal('');
   protected readonly authorization = signal<string | null>(null);
+  protected readonly view = signal<'cases' | 'knowledge'>('cases');
   protected readonly error = signal('');
   protected readonly loading = signal(false);
 
@@ -51,6 +53,7 @@ export class App {
     this.authenticatedAs.set(null);
     this.authorization.set(null);
     this.organizationName.set('');
+    this.view.set('cases');
     this.username.set('');
     this.password.set('');
   }
