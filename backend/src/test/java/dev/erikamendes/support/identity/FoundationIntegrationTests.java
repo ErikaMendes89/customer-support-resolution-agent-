@@ -34,6 +34,8 @@ class FoundationIntegrationTests {
         mvc.perform(get("/api/v1/me").with(httpBasic("demo", "test-password")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.username").value("demo"))
                 .andExpect(jsonPath("$.organizationName").value("Aurora Demo"));
+        mvc.perform(get("/api/v1/me").with(httpBasic("demo", "test-password")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.username").value("demo"));
     }
 
     @Test

@@ -55,7 +55,9 @@ public class SecurityConfiguration {
         return login -> {
             SupportUser user = users.get(login);
             if (user == null) throw new UsernameNotFoundException("Unknown user");
-            return user;
+            // Spring Security clears credentials after authentication; never return the cached instance.
+            return new SupportUser(user.getUsername(), user.getPassword(),
+                    user.organizationId(), user.organizationName());
         };
     }
 }
