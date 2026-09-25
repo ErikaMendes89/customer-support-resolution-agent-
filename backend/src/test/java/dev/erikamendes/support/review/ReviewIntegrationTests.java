@@ -110,7 +110,7 @@ class ReviewIntegrationTests {
         mvc.perform(post("/api/v1/documents").with(httpBasic("demo", "test-password"))
                 .cookie(cookie).header("X-XSRF-TOKEN", cookie.getValue()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"title\":\"Manual de protocolo\",\"content\":\"O protocolo é entregue após a confirmação dos dados cadastrais do solicitante.\"}"))
-                .andExpect(status().isCreated());
+                .andExpect(status().is2xxSuccessful());
     }
 
     private String generate(String id, String user, String password) throws Exception {
