@@ -36,6 +36,13 @@ jobs:
       - name: Backend tests and migration
         run: ./mvnw --batch-mode verify
         working-directory: backend
+      - name: Upload synthetic evaluation summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-evaluation-summary
+          path: backend/target/evaluation-summary.json
+          if-no-files-found: ignore
   frontend:
     runs-on: ubuntu-latest
     steps:

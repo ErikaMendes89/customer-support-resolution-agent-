@@ -15,9 +15,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
@@ -31,27 +33,55 @@ public class ProposalService {
     private final ProposalRepository proposals;
     private final ObjectMapper mapper;
     private final TransactionTemplate transactions;
+    private final double minimumSimilarity;
 
     public ProposalService(CaseRepository cases, KnowledgeService knowledge, EmbeddingClient embeddings,
-                           GenerationClient generation, ProposalRepository proposals, ObjectMapper mapper, TransactionTemplate transactions) {
+                           GenerationClient generation, ProposalRepository proposals, ObjectMapper mapper, TransactionTemplate transactions,
+                           @Value("${app.proposals.minimum-similarity:0.55}") double minimumSimilarity) {
         this.cases = cases; this.knowledge = knowledge; this.embeddings = embeddings;
         this.generation = generation; this.proposals = proposals; this.mapper = mapper; this.transactions = transactions;
+        if (minimumSimilarity < -1 || minimumSimilarity > 1 || !Double.isFinite(minimumSimilarity))
+            throw new IllegalArgumentException("Invalid minimum similarity");
+        this.minimumSimilarity = minimumSimilarity;
     }
 
-    public ResolutionProposal generate(UUID caseId, UUID org, String actor) {
+    public ResolutionProposal generate(UUID caseId, UUID org, String actor, String requestKey) {
+        if (requestKey != null && (requestKey.isBlank() || requestKey.length() > 80
+                || !requestKey.matches("[A-Za-z0-9_-]+"))) throw new InvalidIdempotencyKeyException();
         var supportCase = cases.find(caseId, org).orElseThrow(CaseNotFoundException::new);
-        if (terminal(supportCase.status())) throw new ProposalConflictException();
-        String query = (supportCase.title() + " " + supportCase.description());
-        if (query.length() > 500) query = query.substring(0, 500);
-        var hits = knowledge.search(org, query, 5);
-        List<Source> candidates = new ArrayList<>();
-        for (int i = 0; i < hits.size(); i++) {
-            var hit = hits.get(i);
-            candidates.add(new Source("S" + (i + 1), hit.documentId(), hit.documentTitle(),
-                    hit.chunkOrdinal(), hit.content(), hit.similarity()));
+        if (requestKey != null) {
+            var completed = proposals.completedRequest(caseId, org, requestKey);
+            if (completed.isPresent()) return proposals.find(completed.get(), caseId, org).orElseThrow();
         }
-        String response = candidates.isEmpty() ? null : generation.generate(supportCase.title(), supportCase.description(), candidates);
-        return transactions.execute(status -> persist(caseId, org, actor, candidates, response));
+        if (terminal(supportCase.status())) throw new ProposalConflictException();
+        if (requestKey != null && !transactions.execute(status -> proposals.reserveRequest(caseId, org, requestKey))) {
+            var completed = proposals.completedRequest(caseId, org, requestKey);
+            if (completed.isPresent()) return proposals.find(completed.get(), caseId, org).orElseThrow();
+            throw new ProposalConflictException();
+        }
+        try {
+            String query = (supportCase.title() + " " + supportCase.description());
+            if (query.length() > 500) query = query.substring(0, 500);
+            var hits = knowledge.search(org, query, 5).stream()
+                    .filter(hit -> Double.isFinite(hit.similarity()) && hit.similarity() >= minimumSimilarity).toList();
+            List<Source> candidates = new ArrayList<>();
+            for (int i = 0; i < hits.size(); i++) {
+                var hit = hits.get(i);
+                candidates.add(new Source("S" + (i + 1), hit.documentId(), hit.documentTitle(),
+                        hit.chunkOrdinal(), hit.content(), hit.similarity()));
+            }
+            String response = candidates.isEmpty() ? null : generation.generate(supportCase.title(), supportCase.description(), candidates);
+            return transactions.execute(status -> {
+                ResolutionProposal proposal = persist(caseId, org, actor, candidates, response);
+                if (requestKey != null) proposals.completeRequest(caseId, org, requestKey, proposal.id());
+                return proposal;
+            });
+        } catch (RuntimeException error) {
+            if (requestKey != null) transactions.execute(status -> {
+                proposals.releaseRequest(caseId, org, requestKey); return null;
+            });
+            throw error;
+        }
     }
 
     public ResolutionProposal persist(UUID caseId, UUID org, String actor, List<Source> candidates, String response) {

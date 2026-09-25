@@ -103,9 +103,9 @@ export class CaseApiService {
     });
   }
 
-  generateProposal(authorization: string, caseId: string) {
+  generateProposal(authorization: string, caseId: string, requestKey: string) {
     return this.http.post<ResolutionProposal>(`${this.url}/${caseId}/proposals`, {}, {
-      headers: this.headers(authorization)
+      headers: this.headers(authorization).set('Idempotency-Key', requestKey)
     });
   }
 

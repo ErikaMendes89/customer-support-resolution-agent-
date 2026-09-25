@@ -7,3 +7,5 @@ backend/target/
 frontend/node_modules/
 frontend/dist/
 frontend/.angular/
+evaluation-live-summary.json
+evaluation/__pycache__/

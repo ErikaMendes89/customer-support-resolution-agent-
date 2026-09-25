@@ -28,6 +28,9 @@ export class CasesWorkspace implements OnInit {
   protected readonly reviewNote = signal('');
   protected readonly busy = signal(false);
   protected readonly error = signal('');
+  private selectionVersion = 0;
+  private pendingGenerationKey: string | null = null;
+  private pendingGenerationCaseId: string | null = null;
 
   ngOnInit(): void { this.load(0); }
 
@@ -48,9 +51,10 @@ export class CasesWorkspace implements OnInit {
 
   protected open(item: SupportCase): void {
     this.error.set('');
+    const version = ++this.selectionVersion;
     this.api.get(this.authorization, item.id).subscribe({
-      next: (detail) => { this.selected.set(detail); this.status.set(''); this.note.set(''); this.proposals.set([]); this.reviews.set([]); this.activeProposal.set(null); this.loadProposals(item.id); this.loadReviews(item.id); },
-      error: () => this.error.set('Não foi possível abrir este caso.')
+      next: (detail) => { if (version !== this.selectionVersion) return; this.selected.set(detail); this.status.set(''); this.note.set(''); this.proposals.set([]); this.reviews.set([]); this.activeProposal.set(null); this.loadProposals(item.id); this.loadReviews(item.id); },
+      error: () => { if (version === this.selectionVersion) this.error.set('Não foi possível abrir este caso.'); }
     });
   }
 
@@ -106,9 +110,16 @@ export class CasesWorkspace implements OnInit {
     const caseId = this.selected()?.supportCase.id;
     if (!caseId) return;
     this.busy.set(true); this.error.set('');
-    this.api.generateProposal(this.authorization, caseId).subscribe({
+    if (this.pendingGenerationCaseId !== caseId) {
+      this.pendingGenerationCaseId = caseId;
+      this.pendingGenerationKey = null;
+    }
+    const requestKey = this.pendingGenerationKey ?? crypto.randomUUID();
+    this.pendingGenerationKey = requestKey;
+    this.api.generateProposal(this.authorization, caseId, requestKey).subscribe({
       next: (proposal) => {
         this.busy.set(false);
+        this.pendingGenerationKey = null;
         if (this.selected()?.supportCase.id !== caseId) return;
         this.proposals.update(items => [proposal, ...items]);
         this.activeProposal.set(proposal);

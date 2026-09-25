@@ -19,12 +19,6 @@ public class ReviewRepository {
                 (rs, row) -> rs.getString("status"), id, caseId, org).stream().findFirst();
     }
 
-    public boolean hasDecision(UUID id, UUID caseId, UUID org) {
-        Boolean result = jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM proposal_reviews WHERE proposal_id = ? AND case_id = ? AND organization_id = ?)",
-                Boolean.class, id, caseId, org);
-        return Boolean.TRUE.equals(result);
-    }
-
     public ProposalReview insert(UUID proposalId, UUID caseId, UUID org, Decision decision,
                                  String answer, String note, String actor) {
         UUID id = UUID.randomUUID();

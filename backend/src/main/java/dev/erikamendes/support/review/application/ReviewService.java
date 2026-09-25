@@ -31,12 +31,21 @@ public class ReviewService {
     public ProposalReview decide(UUID caseId, UUID proposalId, UUID org, String actor,
                                  Decision decision, String editedAnswer, String note) {
         var current = cases.findForUpdate(caseId, org).orElseThrow(CaseNotFoundException::new);
-        if (current.status() == CaseStatus.RESOLVED || current.status() == CaseStatus.CLOSED)
-            throw new ReviewConflictException();
         String status = reviews.lockProposal(proposalId, caseId, org).orElseThrow(CaseNotFoundException::new);
-        if (reviews.hasDecision(proposalId, caseId, org)) throw new ReviewConflictException();
         String cleanNote = note == null || note.isBlank() ? null : note.trim();
         String cleanAnswer = editedAnswer == null || editedAnswer.isBlank() ? null : editedAnswer.trim();
+        var previous = reviews.find(proposalId, caseId, org);
+        if (previous.isPresent()) {
+            ProposalReview saved = previous.get();
+            boolean same = saved.decision() == decision && saved.reviewedBy().equals(actor)
+                    && java.util.Objects.equals(saved.note(), cleanNote)
+                    && (decision == Decision.EDITED
+                        ? java.util.Objects.equals(saved.finalAnswer(), cleanAnswer) : cleanAnswer == null);
+            if (same) return saved;
+            throw new ReviewConflictException();
+        }
+        if (current.status() == CaseStatus.RESOLVED || current.status() == CaseStatus.CLOSED)
+            throw new ReviewConflictException();
         String finalAnswer = null;
         if (decision == Decision.REJECTED) {
             if (cleanNote == null || cleanAnswer != null) throw new InvalidReviewException();

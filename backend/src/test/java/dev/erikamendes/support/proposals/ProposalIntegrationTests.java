@@ -81,6 +81,26 @@ class ProposalIntegrationTests {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
     }
 
+    @Test
+    void idempotencyKeyReturnsSameProposalWithoutRepeatingGeneration() throws Exception {
+        ingest("Manual de idempotência", "Cada chamado precisa de confirmação do cadastro antes do protocolo.");
+        String ticket = createCase("demo", "test-password", "Protocolo repetido");
+        Cookie cookie = csrf("demo", "test-password");
+        int before = generationCalls.get();
+        String first = mvc.perform(post("/api/v1/cases/{id}/proposals", ticket)
+                .with(httpBasic("demo", "test-password"))
+                .cookie(cookie).header("X-XSRF-TOKEN", cookie.getValue())
+                .header("Idempotency-Key", "retry-proposal-" + ticket))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String second = mvc.perform(post("/api/v1/cases/{id}/proposals", ticket)
+                .with(httpBasic("demo", "test-password"))
+                .cookie(cookie).header("X-XSRF-TOKEN", cookie.getValue())
+                .header("Idempotency-Key", "retry-proposal-" + ticket))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        assertThat(JsonPath.<String>read(first, "$.id")).isEqualTo(JsonPath.<String>read(second, "$.id"));
+        assertThat(generationCalls.get()).isEqualTo(before + 1);
+    }
+
     private String createCase(String user, String password, String title) throws Exception {
         Cookie cookie = csrf(user, password);
         var response = mvc.perform(post("/api/v1/cases").with(httpBasic(user, password))

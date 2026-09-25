@@ -43,6 +43,7 @@ class ReviewIntegrationTests {
                 "{\"decision\":\"APPROVED\"}", 201);
         assertThat(JsonPath.<String>read(answer, "$.finalAnswer")).contains("[S1]");
         assertThat(JsonPath.<String>read(answer, "$.reviewedBy")).isEqualTo("demo");
+        review(caseId, proposalId, "demo", "test-password", "{\"decision\":\"APPROVED\"}", 201);
         review(caseId, proposalId, "demo", "test-password", "{\"decision\":\"REJECTED\",\"note\":\"não\"}", 409);
         mvc.perform(get("/api/v1/cases/{id}/reviews", caseId).with(httpBasic("demo", "test-password")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$[0].proposalId").value(proposalId));

@@ -2,7 +2,7 @@
 
 Uma aplicação de portfólio para acompanhar casos de suporte e propor rascunhos de resolução fundamentados em documentos, para revisão humana.
 
-**Estado atual: fase 4 — revisão humana e histórico de decisões.** Além da geração com fontes, um atendente pode aprovar, editar e aprovar, ou rejeitar cada proposta. Cada decisão registra autor, data, justificativa e resposta final quando aplicável. Nenhuma decisão envia mensagens externas ou altera automaticamente o estado do caso.
+**Estado atual: fase 5 — avaliação reproduzível e testes de segurança.** Além de casos, recuperação, propostas e revisão humana, a CI executa um corpus sintético para verificar abstenção, fontes, citações, resistência a instruções em documentos e isolamento por organização. Um runner separado permite avaliar o Ollama real em banco descartável; métricas determinísticas com modelos falsos não representam qualidade semântica real.
 
 ## O que existe agora
 
@@ -12,7 +12,7 @@ Uma aplicação de portfólio para acompanhar casos de suporte e propor rascunho
 - Base de conhecimento com textos de até 12 mil caracteres, embeddings locais pelo Ollama, fontes por documento/trecho e exclusão de documentos.
 - Propostas versionadas por caso, com fontes preservadas mesmo após excluir o documento original; interface para consulta e geração.
 - Revisão humana de cada proposta, com decisão única e auditável, justificativa para edições e rejeições e consulta ao histórico por caso.
-- CI que executa testes de integração do backend contra PostgreSQL/pgvector e compila o frontend.
+- CI que executa testes de integração e avaliação sintética contra PostgreSQL/pgvector, publica o resumo de métricas como artefato e compila o frontend.
 
 As duas contas servem apenas à demonstração local. Seus nomes e senhas são configurados por ambiente, não ficam no repositório, e as senhas são codificadas em memória pelo backend. A interface guarda a credencial de acesso somente em memória enquanto estiver aberta; sair remove essa credencial da interface. **HTTP Basic deve ser usado apenas em localhost ou sobre HTTPS.** Ainda não há gestão de usuários persistentes nem papéis completos. O isolamento dos casos é feito pelo identificador da organização associado à conta autenticada, e não por um identificador fornecido pelo cliente.
 
@@ -61,7 +61,7 @@ As regras de estado ficam no domínio; as transações são coordenadas na camad
 
 Na ingestão, o texto é dividido em trechos de até 900 caracteres Unicode, com sobreposição de aproximadamente 120. Os embeddings são gerados **antes** da transação; documento e trechos são inseridos juntos, de modo que uma falha do modelo não deixe um documento parcial visível. O hash SHA-256 evita duplicar o mesmo conteúdo para a mesma organização e modelo. A busca filtra a organização e o modelo antes de calcular a distância de cosseno no pgvector; a primeira versão usa ranking exato para priorizar a consistência dos resultados. Índices aproximados como HNSW serão avaliados com volume e métricas de recall.
 
-A geração busca até cinco trechos do modelo de embeddings atual. O texto do caso e os documentos são incluídos no prompt como dados não confiáveis, sem ferramentas nem ações externas. A API exige ao menos uma referência válida no formato `[S1]` no texto da resposta e descarta uma resposta vazia, longa demais ou com referência desconhecida. Essa validação verifica a existência da fonte, **não** comprova que a afirmação esteja correta: a pessoa deve confrontar o rascunho com os trechos. A chamada ao modelo ocorre antes da transação; antes de salvar, a aplicação bloqueia o caso, confere seu estado e verifica se os trechos recuperados ainda existem. As fontes usadas ficam como snapshots em `proposal_sources`, para permitir auditoria após exclusão de documentos. A proposta não altera o estado do caso.
+A geração busca até cinco trechos do modelo de embeddings atual e descarta os que estão abaixo da similaridade mínima configurada (`PROPOSAL_MIN_SIMILARITY`, padrão `0.55`). O limiar deve ser calibrado em um corpus representativo: similaridade de cosseno não é uma probabilidade de correção. O texto do caso e os documentos são incluídos no prompt como dados não confiáveis, sem ferramentas nem ações externas. A API exige ao menos uma referência válida no formato `[S1]` no texto da resposta e descarta uma resposta vazia, longa demais ou com referência desconhecida. Essa validação verifica a existência da fonte, **não** comprova que a afirmação esteja correta: a pessoa deve confrontar o rascunho com os trechos. A chamada ao modelo ocorre antes da transação; antes de salvar, a aplicação bloqueia o caso, confere seu estado e verifica se os trechos recuperados ainda existem. As fontes usadas ficam como snapshots em `proposal_sources`, para permitir auditoria após exclusão de documentos. A proposta não altera o estado do caso.
 
 Na revisão, a aplicação bloqueia primeiro o caso e depois a proposta na mesma transação, preservando uma ordem de bloqueios. A restrição `UNIQUE (proposal_id)` impede duas decisões para uma mesma proposta mesmo com solicitações simultâneas. A chave composta relaciona decisão, proposta, caso e organização; consultas usam o escopo da conta autenticada. Apenas rascunhos `READY_FOR_REVIEW` podem ser aprovados ou editados; uma proposta com evidência insuficiente pode ser rejeitada com justificativa. Editar exige justificativa, texto diferente e pelo menos uma citação a uma fonte já preservada. Essa checagem valida os identificadores das citações, não verifica o sentido das afirmações editadas. Casos resolvidos ou encerrados não aceitam novas decisões. O estado do caso continua sendo alterado por uma operação separada.
 
@@ -79,8 +79,10 @@ backend/
     V3__knowledge_documents.sql
     V4__resolution_proposals.sql
     V5__human_reviews.sql
+    V6__generation_idempotency.sql
 frontend/src/app/features/cases/  # Interface de casos
 frontend/src/app/features/knowledge/  # Documentos e busca
+evaluation/run_live.py  # Avaliação real opt-in em banco descartável
 compose.yaml           # PostgreSQL/pgvector local
 .github/workflows/ci.yml
 ```
@@ -152,12 +154,14 @@ O valor `demo` no segundo comando deve ser substituído caso você altere `DEMO_
 | `GET /api/v1/documents/{id}` | Metadados e trechos do documento |
 | `DELETE /api/v1/documents/{id}` | Exclui documento e trechos da organização |
 | `POST /api/v1/knowledge/search` | Recebe `query` e `topK` (1 a 10); retorna trechos, fonte e similaridade |
-| `POST /api/v1/cases/{id}/proposals` | Gera e grava um rascunho ou indica evidência insuficiente; retorna `201` |
+| `POST /api/v1/cases/{id}/proposals` | Gera e grava um rascunho ou indica evidência insuficiente; retorna `201`; aceita `Idempotency-Key` |
 | `GET /api/v1/cases/{id}/proposals` | Lista até 50 propostas recentes do caso |
 | `GET /api/v1/cases/{id}/proposals/{proposalId}` | Consulta a proposta e os snapshots das fontes citadas |
 | `POST /api/v1/cases/{id}/proposals/{proposalId}/review` | Registra decisão `APPROVED`, `EDITED` ou `REJECTED`; recebe `decision`, `editedAnswer` opcional e `note` opcional conforme a decisão |
 | `GET /api/v1/cases/{id}/proposals/{proposalId}/review` | Consulta a decisão da proposta |
 | `GET /api/v1/cases/{id}/reviews` | Lista até 50 decisões recentes do caso |
+
+Para a geração, envie `Idempotency-Key` com 1 a 80 caracteres alfanuméricos, `-` ou `_` (por exemplo, um UUID). Uma repetição após o sucesso retorna a mesma proposta sem chamar os modelos novamente. Enquanto a primeira chamada ainda está em processamento, a repetição retorna `409` e deve ser tentada depois com a mesma chave. Falhas liberam a reserva para uma nova tentativa; uma reserva abandonada pode ser recuperada após dez minutos. A interface preserva a chave enquanto a geração não termina com sucesso. Clientes antigos sem chave continuam funcionando, mas podem gerar propostas repetidas. Reenviar a mesma decisão de revisão pelo mesmo usuário, com os mesmos campos normalizados, retorna a decisão já gravada; uma decisão diferente retorna `409`.
 
 As requisições POST, PATCH e DELETE exigem autenticação e o cabeçalho `X-XSRF-TOKEN` correspondente ao cookie `XSRF-TOKEN`. O Angular gerencia esse cabeçalho após chamar a rota de CSRF. Um ID inexistente ou de outra organização retorna `404`; uma transição proibida retorna `409`. O cliente não envia `organizationId` para determinar o escopo de uma operação. Falha do serviço de embeddings ou de geração retorna `503` sem gravar proposta. Caso resolvido/encerrado, fontes removidas durante a geração, proposta já decidida ou tentativa de aprovar evidências insuficientes retornam `409`. Rejeição sem justificativa e edição sem justificativa, sem citações válidas ou idêntica ao original retornam `400`.
 
@@ -179,6 +183,21 @@ Com o banco ativo e as variáveis de `.env` carregadas, execute `cd backend && .
 
 Para conferir o frontend, execute `cd frontend && npm ci && npm run build`. A CI executa ambos os builds em tarefas separadas. O banco dos testes é efêmero e não contém dados reais.
 
+## Avaliação da fase 5
+
+O corpus versionado em `backend/src/test/resources/evaluation/scenarios.json` contém seis cenários fictícios: ausência de documentos, resposta fundamentada, consulta fora de assunto, instrução maliciosa no documento, resposta sem citação e documento de outra organização. `AgentEvaluationTests` roda na CI com modelos falsos determinísticos e falha se o estado, a presença de fontes, a abstenção ou o termo de referência divergir. O resumo em `backend/target/evaluation-summary.json` é publicado como artefato `synthetic-evaluation-summary` na CI. As métricas `statusAccuracy`, `sourcePresenceAccuracy` e `supportedTermAccuracy` usam somente esse pequeno corpus: **não medem compreensão do modelo real** nem demonstram segurança completa contra prompt injection.
+
+Para testar o Ollama real, use uma instância local com **banco descartável e sem documentos** nas duas organizações, com API e ambos os modelos ativos. A avaliação cria casos que permanecem no banco, exclui os documentos que criou ao final e grava um relatório local (ignorado pelo Git):
+
+```bash
+set -a
+. ./.env
+set +a
+EVAL_ALLOW_LIVE=1 python3 evaluation/run_live.py
+```
+
+O runner recusa um banco com documentos existentes. Ele verifica abstenção em perguntas sem apoio, citações e termo esperado em um caso positivo, ausência de uma instrução maliciosa no texto final e isolamento entre organizações. As checagens são regras aproximadas; leia cada resposta e fonte antes de afirmar que o modelo está fundamentado. Resultados com Ollama variam conforme modelo, configuração e hardware. O script não envia dados externos além da API local configurada em `EVAL_BASE_URL`.
+
 ## Segurança e limites previstos
 
 - Casos, documentos e trechos são segregados por organização nas consultas e alterações.
@@ -190,7 +209,7 @@ Para conferir o frontend, execute `cd frontend && npm ci && npm run build`. A CI
 
 ## Avaliação planejada
 
-O conjunto de avaliação terá perguntas com respostas conhecidas, informações ausentes, documentos conflitantes e tentativas de injeção de prompt. As métricas incluirão acerto da recuperação, fidelidade das referências, taxa de respostas sem suporte, encaminhamento à revisão, isolamento entre organizações, latência e custo. Resultados só serão publicados com dataset e método de medição.
+O corpus inicial cobre respostas conhecidas, informação ausente e injeção de prompt. Ainda falta ampliá-lo com documentos conflitantes, medição semântica de afirmações, latência e custo por modelo, antes de tratar resultados como referência de produto. Publique resultados reais somente com dataset, configuração do modelo, ambiente e método de medição.
 
 ## Roadmap
 
@@ -199,7 +218,7 @@ O conjunto de avaliação terá perguntas com respostas conhecidas, informaçõe
 - [x] Fase 2: ingestão de texto, trechos, embeddings e busca vetorial com fontes.
 - [x] Fase 3: propostas de resolução com fontes.
 - [x] Fase 4: revisão humana e trilha de decisões.
-- [ ] Fase 5: avaliação e testes de segurança do agente.
+- [x] Fase 5: corpus sintético, gates de segurança e runner real opt-in.
 - [ ] Fase 6: demonstração pública com dados fictícios e métricas.
 
 Este repositório é público e usa somente exemplos fictícios. Não adicione dados de clientes, senhas, tokens nem instruções internas de trabalho.
