@@ -2,6 +2,7 @@ package dev.erikamendes.support.identity;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.web.csrf.CsrfToken;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -15,7 +16,8 @@ public class CurrentUserController {
     }
 
     @GetMapping("/csrf")
-    public void csrf(CsrfToken token) {
+    public void csrf(HttpServletRequest request) {
+        CsrfToken token = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         token.getToken(); // Forces Spring Security to send the XSRF-TOKEN cookie.
     }
 

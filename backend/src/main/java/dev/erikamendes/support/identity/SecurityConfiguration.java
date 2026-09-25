@@ -6,13 +6,14 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import java.util.UUID;
+import java.util.Map;
 
 @Configuration
 public class SecurityConfiguration {
@@ -46,10 +47,15 @@ public class SecurityConfiguration {
                 || secondaryPassword.isBlank() || username.equals(secondaryUsername)) {
             throw new IllegalArgumentException("Configure two distinct non-empty demo accounts");
         }
-        return new InMemoryUserDetailsManager(
-                new SupportUser(username, encoder.encode(password),
+        Map<String, SupportUser> users = Map.of(
+                username, new SupportUser(username, encoder.encode(password),
                         UUID.fromString("11111111-1111-1111-1111-111111111111"), "Aurora Demo"),
-                new SupportUser(secondaryUsername, encoder.encode(secondaryPassword),
+                secondaryUsername, new SupportUser(secondaryUsername, encoder.encode(secondaryPassword),
                         UUID.fromString("22222222-2222-2222-2222-222222222222"), "Horizonte Demo"));
+        return login -> {
+            SupportUser user = users.get(login);
+            if (user == null) throw new UsernameNotFoundException("Unknown user");
+            return user;
+        };
     }
 }

@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import jakarta.validation.ConstraintViolationException;
 
 @RestControllerAdvice
 public class CaseErrorHandler {
@@ -22,5 +23,10 @@ public class CaseErrorHandler {
     @ExceptionHandler(InvalidCaseInputException.class)
     ProblemDetail invalidInput() {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Título ou descrição muito curtos.");
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    ProblemDetail invalidParameter() {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Parâmetro inválido.");
     }
 }
