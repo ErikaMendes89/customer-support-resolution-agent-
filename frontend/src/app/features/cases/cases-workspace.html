@@ -75,15 +75,42 @@
           @if (proposals().length) {
             <label for="proposal-select">Histórico de propostas</label>
             <select id="proposal-select" [ngModel]="activeProposal()?.id"
-              (ngModelChange)="activeProposal.set(proposals().find(p => p.id === $event) ?? null)">
+              (ngModelChange)="selectProposal($event)">
               @for (proposal of proposals(); track proposal.id) {
-                <option [value]="proposal.id">{{ proposal.createdAt | date:'dd/MM/yyyy HH:mm' }} · {{ proposal.status === 'READY_FOR_REVIEW' ? 'Revisão pendente' : 'Evidências insuficientes' }}</option>
+                <option [value]="proposal.id">{{ proposal.createdAt | date:'dd/MM/yyyy HH:mm' }} · {{ proposal.status === 'READY_FOR_REVIEW' ? 'Pronta para revisão' : 'Evidências insuficientes' }}</option>
               }
             </select>
           }
           @if (activeProposal(); as proposal) {
             <p class="badge">{{ proposal.status === 'READY_FOR_REVIEW' ? 'Aguardando revisão humana' : 'Evidências insuficientes' }}</p>
             <p class="description">{{ proposal.answer }}</p>
+            @if (reviewFor(proposal.id); as review) {
+              <div class="review-result">
+                <strong>{{ review.decision === 'APPROVED' ? 'Aprovada' : review.decision === 'EDITED' ? 'Editada e aprovada' : 'Rejeitada' }}</strong>
+                <p class="muted">{{ review.reviewedBy }} · {{ review.reviewedAt | date:'dd/MM/yyyy HH:mm' }}</p>
+                @if (review.finalAnswer) { <p class="description">Resposta final: {{ review.finalAnswer }}</p> }
+                @if (review.note) { <p>Justificativa: {{ review.note }}</p> }
+              </div>
+            } @else if (detail.supportCase.status !== 'RESOLVED' && detail.supportCase.status !== 'CLOSED') {
+              <div class="review-actions">
+                <h4>Revisão humana</h4>
+                @if (proposal.status === 'READY_FOR_REVIEW') {
+                  <button type="button" [disabled]="busy()" (click)="decide('APPROVED')">Aprovar como está</button>
+                  <label for="edited-answer">Editar resposta antes de aprovar (mantenha citações válidas)</label>
+                  <textarea id="edited-answer" rows="5" maxlength="3000" [ngModel]="editedAnswer()"
+                    (ngModelChange)="editedAnswer.set($event)"></textarea>
+                }
+                <label for="review-note">Justificativa para editar ou rejeitar</label>
+                <textarea id="review-note" rows="3" maxlength="2000" [ngModel]="reviewNote()"
+                  (ngModelChange)="reviewNote.set($event)"></textarea>
+                @if (proposal.status === 'READY_FOR_REVIEW') {
+                  <button type="button" class="secondary" [disabled]="busy() || !reviewNote().trim() || !editedAnswer().trim() || editedAnswer().trim() === proposal.answer"
+                    (click)="decide('EDITED')">Salvar edição e aprovar</button>
+                }
+                <button type="button" class="secondary" [disabled]="busy() || !reviewNote().trim()"
+                  (click)="decide('REJECTED')">Rejeitar proposta</button>
+              </div>
+            }
             @if (proposal.sources.length) {
               <h4>Fontes utilizadas</h4>
               <ol class="timeline">

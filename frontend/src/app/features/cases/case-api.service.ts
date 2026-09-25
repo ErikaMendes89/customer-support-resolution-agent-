@@ -57,6 +57,19 @@ export interface ResolutionProposal {
   sources: ProposalSource[];
 }
 
+export type ReviewDecision = 'APPROVED' | 'EDITED' | 'REJECTED';
+
+export interface ProposalReview {
+  id: string;
+  proposalId: string;
+  caseId: string;
+  decision: ReviewDecision;
+  finalAnswer: string | null;
+  note: string | null;
+  reviewedBy: string;
+  reviewedAt: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CaseApiService {
   private readonly http = inject(HttpClient);
@@ -94,6 +107,18 @@ export class CaseApiService {
     return this.http.post<ResolutionProposal>(`${this.url}/${caseId}/proposals`, {}, {
       headers: this.headers(authorization)
     });
+  }
+
+  reviews(authorization: string, caseId: string) {
+    return this.http.get<ProposalReview[]>(`${this.url}/${caseId}/reviews`, {
+      headers: this.headers(authorization)
+    });
+  }
+
+  review(authorization: string, caseId: string, proposalId: string, decision: ReviewDecision,
+         editedAnswer: string | null, note: string | null) {
+    return this.http.post<ProposalReview>(`${this.url}/${caseId}/proposals/${proposalId}/review`,
+      { decision, editedAnswer, note }, { headers: this.headers(authorization) });
   }
 
   private headers(authorization: string) {

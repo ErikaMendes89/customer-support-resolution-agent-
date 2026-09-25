@@ -2,7 +2,7 @@
 
 Uma aplicação de portfólio para acompanhar casos de suporte e propor rascunhos de resolução fundamentados em documentos, para revisão humana.
 
-**Estado atual: fase 3 — propostas de resposta com fontes.** A aplicação recupera trechos autorizados, pede um rascunho ao Ollama e valida as referências antes de gravá-lo. Evidências ausentes ou citações inválidas resultam em uma proposta de evidência insuficiente. A revisão e aprovação serão implementadas na fase 4; não há envio automático de respostas.
+**Estado atual: fase 4 — revisão humana e histórico de decisões.** Além da geração com fontes, um atendente pode aprovar, editar e aprovar, ou rejeitar cada proposta. Cada decisão registra autor, data, justificativa e resposta final quando aplicável. Nenhuma decisão envia mensagens externas ou altera automaticamente o estado do caso.
 
 ## O que existe agora
 
@@ -11,6 +11,7 @@ Uma aplicação de portfólio para acompanhar casos de suporte e propor rascunho
 - PostgreSQL 17 com pgvector, iniciado por Docker Compose; Flyway versiona a extensão `vector`, organizações fictícias, casos e eventos.
 - Base de conhecimento com textos de até 12 mil caracteres, embeddings locais pelo Ollama, fontes por documento/trecho e exclusão de documentos.
 - Propostas versionadas por caso, com fontes preservadas mesmo após excluir o documento original; interface para consulta e geração.
+- Revisão humana de cada proposta, com decisão única e auditável, justificativa para edições e rejeições e consulta ao histórico por caso.
 - CI que executa testes de integração do backend contra PostgreSQL/pgvector e compila o frontend.
 
 As duas contas servem apenas à demonstração local. Seus nomes e senhas são configurados por ambiente, não ficam no repositório, e as senhas são codificadas em memória pelo backend. A interface guarda a credencial de acesso somente em memória enquanto estiver aberta; sair remove essa credencial da interface. **HTTP Basic deve ser usado apenas em localhost ou sobre HTTPS.** Ainda não há gestão de usuários persistentes nem papéis completos. O isolamento dos casos é feito pelo identificador da organização associado à conta autenticada, e não por um identificador fornecido pelo cliente.
@@ -53,14 +54,16 @@ O backend parte de um monólito modular. Cada capacidade tem suas próprias regr
 | `cases` | Implementado | Casos, transições de estado, consulta e histórico |
 | `knowledge` | Implementado | Documentos de texto, trechos, embeddings e busca |
 | `proposals` | Implementado | Recuperação por organização, geração, validação e persistência de rascunhos |
-| `review` | Planejado | Aprovação, edição e rejeição humanas |
-| `audit` | Planejado | Registro de decisões relevantes |
+| `review` | Implementado | Aprovação, edição, rejeição e histórico imutável das decisões |
+| `audit` | Parcial no módulo `review` | As decisões são preservadas em `proposal_reviews`; auditoria abrangente permanece no roadmap |
 
 As regras de estado ficam no domínio; as transações são coordenadas na camada de aplicação; os repositórios usam JDBC com consultas explícitas. Um caso e seu evento são gravados na mesma transação. A alteração de estado bloqueia a linha do caso até registrar o evento. As consultas e alterações incluem a organização autenticada. As chaves estrangeiras compostas dos eventos e trechos impedem associá-los a registros de outra organização.
 
 Na ingestão, o texto é dividido em trechos de até 900 caracteres Unicode, com sobreposição de aproximadamente 120. Os embeddings são gerados **antes** da transação; documento e trechos são inseridos juntos, de modo que uma falha do modelo não deixe um documento parcial visível. O hash SHA-256 evita duplicar o mesmo conteúdo para a mesma organização e modelo. A busca filtra a organização e o modelo antes de calcular a distância de cosseno no pgvector; a primeira versão usa ranking exato para priorizar a consistência dos resultados. Índices aproximados como HNSW serão avaliados com volume e métricas de recall.
 
 A geração busca até cinco trechos do modelo de embeddings atual. O texto do caso e os documentos são incluídos no prompt como dados não confiáveis, sem ferramentas nem ações externas. A API exige ao menos uma referência válida no formato `[S1]` no texto da resposta e descarta uma resposta vazia, longa demais ou com referência desconhecida. Essa validação verifica a existência da fonte, **não** comprova que a afirmação esteja correta: a pessoa deve confrontar o rascunho com os trechos. A chamada ao modelo ocorre antes da transação; antes de salvar, a aplicação bloqueia o caso, confere seu estado e verifica se os trechos recuperados ainda existem. As fontes usadas ficam como snapshots em `proposal_sources`, para permitir auditoria após exclusão de documentos. A proposta não altera o estado do caso.
+
+Na revisão, a aplicação bloqueia primeiro o caso e depois a proposta na mesma transação, preservando uma ordem de bloqueios. A restrição `UNIQUE (proposal_id)` impede duas decisões para uma mesma proposta mesmo com solicitações simultâneas. A chave composta relaciona decisão, proposta, caso e organização; consultas usam o escopo da conta autenticada. Apenas rascunhos `READY_FOR_REVIEW` podem ser aprovados ou editados; uma proposta com evidência insuficiente pode ser rejeitada com justificativa. Editar exige justificativa, texto diferente e pelo menos uma citação a uma fonte já preservada. Essa checagem valida os identificadores das citações, não verifica o sentido das afirmações editadas. Casos resolvidos ou encerrados não aceitam novas decisões. O estado do caso continua sendo alterado por uma operação separada.
 
 ```text
 backend/
@@ -69,11 +72,13 @@ backend/
     cases/             # Domínio, aplicação, infraestrutura e API
     knowledge/         # Ingestão, embeddings e busca
     proposals/         # Geração, validação e fontes dos rascunhos
+    review/            # Decisão humana e histórico
   src/main/resources/db/migration/
     V1__enable_vector.sql
     V2__cases_and_history.sql
     V3__knowledge_documents.sql
     V4__resolution_proposals.sql
+    V5__human_reviews.sql
 frontend/src/app/features/cases/  # Interface de casos
 frontend/src/app/features/knowledge/  # Documentos e busca
 compose.yaml           # PostgreSQL/pgvector local
@@ -121,7 +126,7 @@ Se o Ollama já estiver ativo, basta executar o `pull`. Use `OLLAMA_BASE_URL` e 
    npm start
    ```
 
-5. Abra `http://localhost:4200` e entre com uma das duas contas do `.env`. Em **Casos**, crie um caso e acompanhe seu histórico. Em **Conhecimento**, cole texto ou selecione um `.txt`/`.md`, indexe e busque trechos. No detalhe do caso, clique em **Gerar proposta** e examine as fontes. Saia e entre com a outra conta para conferir que casos e documentos não aparecem ali. O servidor de desenvolvimento do Angular encaminha `/api` para `http://localhost:8080`.
+5. Abra `http://localhost:4200` e entre com uma das duas contas do `.env`. Em **Casos**, crie um caso e acompanhe seu histórico. Em **Conhecimento**, cole texto ou selecione um `.txt`/`.md`, indexe e busque trechos. No detalhe do caso, clique em **Gerar proposta**, examine as fontes e registre sua aprovação, edição ou rejeição. Uma edição ou rejeição precisa de justificativa. Saia e entre com a outra conta para conferir que casos e documentos não aparecem ali. O servidor de desenvolvimento do Angular encaminha `/api` para `http://localhost:8080`.
 
 Também é possível conferir a API diretamente:
 
@@ -150,8 +155,11 @@ O valor `demo` no segundo comando deve ser substituído caso você altere `DEMO_
 | `POST /api/v1/cases/{id}/proposals` | Gera e grava um rascunho ou indica evidência insuficiente; retorna `201` |
 | `GET /api/v1/cases/{id}/proposals` | Lista até 50 propostas recentes do caso |
 | `GET /api/v1/cases/{id}/proposals/{proposalId}` | Consulta a proposta e os snapshots das fontes citadas |
+| `POST /api/v1/cases/{id}/proposals/{proposalId}/review` | Registra decisão `APPROVED`, `EDITED` ou `REJECTED`; recebe `decision`, `editedAnswer` opcional e `note` opcional conforme a decisão |
+| `GET /api/v1/cases/{id}/proposals/{proposalId}/review` | Consulta a decisão da proposta |
+| `GET /api/v1/cases/{id}/reviews` | Lista até 50 decisões recentes do caso |
 
-As requisições POST, PATCH e DELETE exigem autenticação e o cabeçalho `X-XSRF-TOKEN` correspondente ao cookie `XSRF-TOKEN`. O Angular gerencia esse cabeçalho após chamar a rota de CSRF. Um ID inexistente ou de outra organização retorna `404`; uma transição proibida retorna `409`. O cliente não envia `organizationId` para determinar o escopo de uma operação. Falha do serviço de embeddings ou de geração retorna `503` sem gravar proposta. Caso resolvido/encerrado ou fontes removidas durante a geração retornam `409`.
+As requisições POST, PATCH e DELETE exigem autenticação e o cabeçalho `X-XSRF-TOKEN` correspondente ao cookie `XSRF-TOKEN`. O Angular gerencia esse cabeçalho após chamar a rota de CSRF. Um ID inexistente ou de outra organização retorna `404`; uma transição proibida retorna `409`. O cliente não envia `organizationId` para determinar o escopo de uma operação. Falha do serviço de embeddings ou de geração retorna `503` sem gravar proposta. Caso resolvido/encerrado, fontes removidas durante a geração, proposta já decidida ou tentativa de aprovar evidências insuficientes retornam `409`. Rejeição sem justificativa e edição sem justificativa, sem citações válidas ou idêntica ao original retornam `400`.
 
 A interface lê arquivos de texto no navegador e envia seu conteúdo como JSON. Não há processamento de PDF, Word, HTML, imagens ou arquivos binários; a geração de propostas requer o Ollama com os dois modelos configurados. A ingestão é síncrona e limitada a 12 mil caracteres, para manter o tempo de espera controlado. O modelo local precisa estar acessível ao backend.
 
@@ -167,7 +175,7 @@ Transições permitidas:
 
 ## Testes e CI
 
-Com o banco ativo e as variáveis de `.env` carregadas, execute `cd backend && ./mvnw verify`. Os testes de integração verificam migrações, autenticação, CSRF, casos e histórico, cadastro idempotente, busca vetorial, exclusão e isolamento entre duas organizações. Os testes substituem o Ollama por vetores e respostas controladas; nenhum serviço externo é necessário para `verify`.
+Com o banco ativo e as variáveis de `.env` carregadas, execute `cd backend && ./mvnw verify`. Os testes de integração verificam migrações, autenticação, CSRF, casos e histórico, cadastro idempotente, busca vetorial, exclusão e isolamento entre duas organizações. Os testes substituem o Ollama por vetores e respostas controladas e verificam aprovação única, edição, rejeição, CSRF, estados e isolamento; nenhum serviço externo é necessário para `verify`.
 
 Para conferir o frontend, execute `cd frontend && npm ci && npm run build`. A CI executa ambos os builds em tarefas separadas. O banco dos testes é efêmero e não contém dados reais.
 
@@ -175,7 +183,7 @@ Para conferir o frontend, execute `cd frontend && npm ci && npm run build`. A CI
 
 - Casos, documentos e trechos são segregados por organização nas consultas e alterações.
 - Documentos e mensagens recuperados são tratados como dados não confiáveis no prompt; a validação de citações não garante fidelidade semântica.
-- Propostas sem fontes ou com citações inválidas sinalizam evidência insuficiente; todas exigem revisão humana.
+- Propostas sem fontes ou com citações inválidas sinalizam evidência insuficiente; a aprovação exige revisão humana.
 - Ações sensíveis exigirão permissão específica e aprovação humana.
 - Segredos serão fornecidos por ambiente; exemplos do repositório contêm apenas placeholders.
 - As operações de escrita já exigem token CSRF. Antes de atender usuários reais, a autenticação de demonstração deverá ser substituída por uma solução de identidade adequada.
@@ -190,7 +198,7 @@ O conjunto de avaliação terá perguntas com respostas conhecidas, informaçõe
 - [x] Fase 1: cadastro de casos, estados, histórico e isolamento por organização.
 - [x] Fase 2: ingestão de texto, trechos, embeddings e busca vetorial com fontes.
 - [x] Fase 3: propostas de resolução com fontes.
-- [ ] Fase 4: revisão humana e trilha de decisões.
+- [x] Fase 4: revisão humana e trilha de decisões.
 - [ ] Fase 5: avaliação e testes de segurança do agente.
 - [ ] Fase 6: demonstração pública com dados fictícios e métricas.
 
