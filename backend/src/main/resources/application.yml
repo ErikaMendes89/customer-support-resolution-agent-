@@ -22,3 +22,5 @@ app:
   auth:
     username: ${DEMO_USERNAME}
     password: ${DEMO_PASSWORD}
+    secondary-username: ${DEMO_SECONDARY_USERNAME}
+    secondary-password: ${DEMO_SECONDARY_PASSWORD}

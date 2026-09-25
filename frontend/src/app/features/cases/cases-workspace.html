@@ -1,0 +1,82 @@
+<div class="workspace">
+  <div class="heading">
+    <div><p class="eyebrow">{{ organizationName }}</p><h2>Casos de suporte</h2></div>
+    <span class="count">{{ results()?.total ?? 0 }} caso(s)</span>
+  </div>
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+
+  <div class="columns">
+    <div class="left">
+      <section class="card">
+        <h3>Novo caso</h3>
+        <form (ngSubmit)="create()">
+          <label for="case-title">Título</label>
+          <input id="case-title" name="title" required minlength="3" maxlength="160"
+            [ngModel]="title()" (ngModelChange)="title.set($event)" />
+          <label for="case-description">Descrição</label>
+          <textarea id="case-description" name="description" required minlength="10" maxlength="5000" rows="4"
+            [ngModel]="description()" (ngModelChange)="description.set($event)"></textarea>
+          <button type="submit" [disabled]="busy()">Criar caso</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h3>Lista de casos</h3>
+        @for (item of results()?.items ?? []; track item.id) {
+          <button type="button" class="case-row" (click)="open(item)"
+            [class.active]="selected()?.supportCase?.id === item.id">
+            <strong>{{ item.title }}</strong><span>{{ label(item.status) }}</span>
+          </button>
+        } @empty { <p class="muted">Ainda não há casos nesta organização.</p> }
+        @if (results(); as page) {
+          <nav class="pagination" aria-label="Páginas de casos">
+            <button type="button" class="secondary" [disabled]="page.page === 0" (click)="load(page.page - 1)">Anterior</button>
+            <span>{{ page.page + 1 }} / {{ Math.ceil(page.total / page.size) || 1 }}</span>
+            <button type="button" class="secondary" [disabled]="(page.page + 1) * page.size >= page.total"
+              (click)="load(page.page + 1)">Próxima</button>
+          </nav>
+        }
+      </section>
+    </div>
+
+    <section class="card detail">
+      @if (selected(); as detail) {
+        <p class="eyebrow">CASO {{ detail.supportCase.id }}</p>
+        <h3>{{ detail.supportCase.title }}</h3>
+        <span class="badge">{{ label(detail.supportCase.status) }}</span>
+        <p class="description">{{ detail.supportCase.description }}</p>
+        <p class="muted">Criado por {{ detail.supportCase.createdBy }} em {{ detail.supportCase.createdAt | date:'dd/MM/yyyy HH:mm' }}</p>
+
+        @if (detail.supportCase.allowedTransitions.length) {
+          <form (ngSubmit)="changeStatus()" class="transition">
+            <h4>Atualizar estado</h4>
+            <label for="next-status">Próximo estado</label>
+            <select id="next-status" name="status" required [ngModel]="status()" (ngModelChange)="status.set($event)">
+              <option value="">Selecione</option>
+              @for (next of detail.supportCase.allowedTransitions; track next) {
+                <option [value]="next">{{ label(next) }}</option>
+              }
+            </select>
+            <label for="transition-note">Nota para o histórico (opcional)</label>
+            <textarea id="transition-note" name="note" maxlength="2000" rows="3"
+              [ngModel]="note()" (ngModelChange)="note.set($event)"></textarea>
+            <button type="submit" [disabled]="busy() || !status()">Salvar mudança</button>
+          </form>
+        }
+
+        <h4>Histórico</h4>
+        <ol class="timeline">
+          @for (event of detail.events; track event.id) {
+            <li>
+              <strong>{{ event.eventType === 'CREATED' ? 'Caso criado' : label(event.toStatus) }}</strong>
+              <span>{{ event.actor }} · {{ event.occurredAt | date:'dd/MM/yyyy HH:mm' }}</span>
+              @if (event.note) { <p>{{ event.note }}</p> }
+            </li>
+          }
+        </ol>
+      } @else {
+        <div class="empty"><h3>Selecione um caso</h3><p>Os detalhes e o histórico aparecerão aqui.</p></div>
+      }
+    </section>
+  </div>
+</div>

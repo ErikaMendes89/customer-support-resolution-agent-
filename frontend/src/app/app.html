@@ -2,18 +2,20 @@
   <header class="header">
     <span class="mark">CS</span>
     <span>Customer Support Resolution Agent</span>
-    <span class="phase">FASE 0</span>
+    <span class="phase">FASE 1 · CASOS</span>
   </header>
 
-  <section class="panel">
-    <p class="eyebrow">FUNDAÇÃO DO PROJETO</p>
-    <h1>Uma base para resolver casos com evidências.</h1>
-    <p class="description">O ambiente inicial conecta Angular, Spring Boot e PostgreSQL com pgvector. Os casos, a busca e a revisão humana serão entregues nas próximas fases.</p>
-
-    @if (authenticatedAs(); as name) {
-      <div class="success" role="status">Conectada à API como <strong>{{ name }}</strong>.</div>
+  @if (authorization(); as authHeader) {
+    <div class="session">
+      <span>{{ authenticatedAs() }} · {{ organizationName() }}</span>
       <button class="secondary" type="button" (click)="logout()">Sair</button>
-    } @else {
+    </div>
+    <app-cases-workspace [authorization]="authHeader" [organizationName]="organizationName()" />
+  } @else {
+  <section class="panel">
+    <p class="eyebrow">CENTRAL DE SUPORTE</p>
+    <h1>Acompanhe cada caso com clareza.</h1>
+    <p class="description">Entre com uma das contas de demonstração para criar casos e acompanhar o histórico da sua organização.</p>
       <form (ngSubmit)="login()">
         <label for="username">Usuário de demonstração</label>
         <input id="username" name="username" autocomplete="username" required
@@ -24,7 +26,7 @@
         <button type="submit" [disabled]="loading()">{{ loading() ? 'Conectando…' : 'Testar conexão' }}</button>
         @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
       </form>
-    }
   </section>
+  }
   <footer>Java · Spring Boot · Angular · PostgreSQL · pgvector</footer>
 </main>

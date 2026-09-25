@@ -13,7 +13,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest(properties = {"app.auth.username=demo", "app.auth.password=test-password"})
+@SpringBootTest(properties = {"app.auth.username=demo", "app.auth.password=test-password",
+        "app.auth.secondary-username=demo-horizonte", "app.auth.secondary-password=test-password-secondary"})
 @AutoConfigureMockMvc
 class FoundationIntegrationTests {
     @Autowired MockMvc mvc;
@@ -31,7 +32,8 @@ class FoundationIntegrationTests {
         mvc.perform(get("/api/v1/me").with(httpBasic("demo", "wrong")))
                 .andExpect(status().isUnauthorized());
         mvc.perform(get("/api/v1/me").with(httpBasic("demo", "test-password")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.username").value("demo"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.username").value("demo"))
+                .andExpect(jsonPath("$.organizationName").value("Aurora Demo"));
     }
 
     @Test

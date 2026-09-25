@@ -23,6 +23,8 @@ jobs:
       DATABASE_PASSWORD: test-password
       DEMO_USERNAME: demo
       DEMO_PASSWORD: test-password
+      DEMO_SECONDARY_USERNAME: demo-horizonte
+      DEMO_SECONDARY_PASSWORD: test-password-secondary
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4

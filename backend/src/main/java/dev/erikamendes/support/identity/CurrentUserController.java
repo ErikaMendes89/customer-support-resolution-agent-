@@ -1,7 +1,7 @@
 package dev.erikamendes.support.identity;
 
-import java.security.Principal;
-import java.util.Map;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -10,7 +10,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/me")
 public class CurrentUserController {
     @GetMapping
-    public Map<String, String> currentUser(Principal principal) {
-        return Map.of("username", principal.getName());
+    public CurrentUser currentUser(@AuthenticationPrincipal SupportUser user) {
+        return new CurrentUser(user.getUsername(), user.organizationId().toString(), user.organizationName());
     }
+
+    @GetMapping("/csrf")
+    public void csrf(CsrfToken token) {
+        token.getToken(); // Forces Spring Security to send the XSRF-TOKEN cookie.
+    }
+
+    public record CurrentUser(String username, String organizationId, String organizationName) { }
 }

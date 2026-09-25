@@ -1,10 +1,12 @@
 import { Component, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { map, switchMap } from 'rxjs';
+import { CasesWorkspace } from './features/cases/cases-workspace';
 
 @Component({
   selector: 'app-root',
-  imports: [FormsModule],
+  imports: [FormsModule, CasesWorkspace],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
@@ -13,6 +15,8 @@ export class App {
   protected readonly username = signal('');
   protected readonly password = signal('');
   protected readonly authenticatedAs = signal<string | null>(null);
+  protected readonly organizationName = signal('');
+  protected readonly authorization = signal<string | null>(null);
   protected readonly error = signal('');
   protected readonly loading = signal(false);
 
@@ -23,11 +27,15 @@ export class App {
     const credentials = btoa(String.fromCharCode(...new TextEncoder().encode(
       `${this.username()}:${this.password()}`
     )));
-    this.http.get<{ username: string }>('/api/v1/me', {
-      headers: { Authorization: `Basic ${credentials}` }
-    }).subscribe({
-      next: ({ username }) => {
+    const authHeader = `Basic ${credentials}`;
+    const headers = { Authorization: authHeader };
+    this.http.get<{ username: string; organizationName: string }>('/api/v1/me', { headers }).pipe(
+      switchMap(user => this.http.get<void>('/api/v1/me/csrf', { headers }).pipe(map(() => user)))
+    ).subscribe({
+      next: ({ username, organizationName }) => {
         this.authenticatedAs.set(username);
+        this.organizationName.set(organizationName);
+        this.authorization.set(authHeader);
         this.password.set('');
         this.loading.set(false);
       },
@@ -41,6 +49,8 @@ export class App {
 
   protected logout(): void {
     this.authenticatedAs.set(null);
+    this.authorization.set(null);
+    this.organizationName.set('');
     this.username.set('');
     this.password.set('');
   }
