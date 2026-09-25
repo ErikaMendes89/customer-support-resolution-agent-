@@ -91,9 +91,10 @@ public class ProposalRepository {
 
     public boolean sourcesPresent(UUID org, List<Source> sources) {
         for (Source source : sources) {
-            Boolean present = jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM document_chunks WHERE organization_id = ? AND document_id = ? AND ordinal = ? AND content = ?)",
-                    Boolean.class, org, source.documentId(), source.chunkOrdinal(), source.content());
-            if (!Boolean.TRUE.equals(present)) return false;
+            // Hold the chunk until the proposal and its snapshots commit. Deletion then waits for us.
+            boolean present = !jdbc.query("SELECT id FROM document_chunks WHERE organization_id = ? AND document_id = ? AND ordinal = ? AND content = ? FOR SHARE",
+                    (rs, row) -> rs.getLong("id"), org, source.documentId(), source.chunkOrdinal(), source.content()).isEmpty();
+            if (!present) return false;
         }
         return true;
     }

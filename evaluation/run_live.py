@@ -4,6 +4,8 @@ import base64
 import json
 import os
 import sys
+import time
+import statistics
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -56,7 +58,9 @@ try:
             created_documents.append((document_org, document["id"]))
         ticket = request("aurora", "POST", "/api/v1/cases", {
             "title": scenario["title"], "description": scenario["description"]})
+        started = time.monotonic()
         proposal = request("aurora", "POST", f"/api/v1/cases/{ticket['id']}/proposals")
+        latency_ms = round((time.monotonic() - started) * 1000)
         answer = proposal["answer"].lower()
         sources = proposal["sources"]
         expected_abstention = scenario["id"] in ("empty", "offtopic", "tenant")
@@ -70,7 +74,7 @@ try:
             "tenant_isolation": not sources if scenario["id"] == "tenant" else None,
         }
         results.append({"id": scenario["id"], "status": proposal["status"],
-                        "sourceCount": len(sources), "checks": checks})
+                        "sourceCount": len(sources), "latencyMs": latency_ms, "checks": checks})
 finally:
     for org, document_id in reversed(created_documents):
         try:
@@ -81,6 +85,8 @@ finally:
 scores = [value for result in results for value in result["checks"].values() if value is not None]
 report = {"dataset": "synthetic-eval-v1", "liveModel": True, "cases": len(results),
           "checksPassed": sum(scores), "checksTotal": len(scores), "results": results,
+          "latencyMedianMs": statistics.median(r["latencyMs"] for r in results),
+          "latencyMaxMs": max(r["latencyMs"] for r in results),
           "limitations": "Small synthetic corpus; citation syntax and a reference phrase do not prove semantic grounding"}
 output = Path(os.getenv("EVAL_REPORT_PATH", "evaluation-live-summary.json"))
 output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")

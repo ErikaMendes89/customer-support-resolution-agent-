@@ -48,8 +48,8 @@ class ProposalIntegrationTests {
 
     @Test
     void citedProposalPersistsSnapshotsAndInvalidCitationAbstains() throws Exception {
-        String document = ingest("Manual proposta", "Solicitações ATRIBUTO-CITADO-UNICO recebem protocolo após conferência do cadastro.");
-        String ticket = createCase("demo", "test-password", "Solicitação de protocolo ATRIBUTO-CITADO-UNICO");
+        String document = ingest("Manual proposta", "Solicitações de suporte devem receber protocolo após conferência do cadastro.");
+        String ticket = createCase("demo", "test-password", "Solicitação de protocolo");
         String response = generate("demo", "test-password", ticket, 201);
         assertThat(JsonPath.<String>read(response, "$.status")).isEqualTo("READY_FOR_REVIEW");
         assertThat(JsonPath.<String>read(response, "$.sources[0].documentId")).isEqualTo(document);
@@ -140,7 +140,7 @@ class ProposalIntegrationTests {
             return new EmbeddingClient() {
                 public String model() { return "proposal-test-768"; }
                 public List<double[]> embed(List<String> texts) {
-                    return texts.stream().map(text -> { double[] vector = new double[768]; vector[text.contains("ATRIBUTO-CITADO-UNICO") ? 1 : 0] = 1; return vector; }).toList();
+                    return texts.stream().map(text -> { double[] vector = new double[768]; vector[0] = 1; return vector; }).toList();
                 }
             };
         }

@@ -196,7 +196,7 @@ set +a
 EVAL_ALLOW_LIVE=1 python3 evaluation/run_live.py
 ```
 
-O runner recusa um banco com documentos existentes. Ele verifica abstenção em perguntas sem apoio, citações e termo esperado em um caso positivo, ausência de uma instrução maliciosa no texto final e isolamento entre organizações. As checagens são regras aproximadas; leia cada resposta e fonte antes de afirmar que o modelo está fundamentado. Resultados com Ollama variam conforme modelo, configuração e hardware. O script não envia dados externos além da API local configurada em `EVAL_BASE_URL`.
+O runner recusa um banco com documentos existentes. Ele verifica abstenção em perguntas sem apoio, citações e termo esperado em um caso positivo, ausência de uma instrução maliciosa no texto final e isolamento entre organizações; também registra latência por caso e mediana/máximo no relatório. As checagens são regras aproximadas; leia cada resposta e fonte antes de afirmar que o modelo está fundamentado. Resultados com Ollama variam conforme modelo, configuração e hardware. O script não envia dados externos além da API local configurada em `EVAL_BASE_URL`.
 
 ## Segurança e limites previstos
 
@@ -209,7 +209,7 @@ O runner recusa um banco com documentos existentes. Ele verifica abstenção em 
 
 ## Avaliação planejada
 
-O corpus inicial cobre respostas conhecidas, informação ausente e injeção de prompt. Ainda falta ampliá-lo com documentos conflitantes, medição semântica de afirmações, latência e custo por modelo, antes de tratar resultados como referência de produto. Publique resultados reais somente com dataset, configuração do modelo, ambiente e método de medição.
+O corpus inicial cobre respostas conhecidas, informação ausente e injeção de prompt. Ainda falta ampliá-lo com documentos conflitantes, medição semântica de afirmações, distribuição de latência em diferentes ambientes e custo por modelo, antes de tratar resultados como referência de produto. Publique resultados reais somente com dataset, configuração do modelo, ambiente e método de medição.
 
 ## Roadmap
 
