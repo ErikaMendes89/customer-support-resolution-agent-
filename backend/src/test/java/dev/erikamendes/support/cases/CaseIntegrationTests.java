@@ -2,7 +2,6 @@ package dev.erikamendes.support.cases;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -20,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import jakarta.servlet.http.Cookie;
 
 @SpringBootTest(properties = {"app.auth.username=demo", "app.auth.password=test-password",
         "app.auth.secondary-username=demo-horizonte", "app.auth.secondary-password=test-password-secondary"})
@@ -42,8 +42,10 @@ class CaseIntegrationTests {
                 .andExpect(status().isNotFound());
         mvc.perform(get("/api/v1/cases/{id}", second).with(httpBasic("demo", "test-password")))
                 .andExpect(status().isNotFound());
+        Cookie otherCookie = csrfCookie("demo-horizonte", "test-password-secondary");
         mvc.perform(patch("/api/v1/cases/{id}/status", first)
-                        .with(httpBasic("demo-horizonte", "test-password-secondary")).with(csrf())
+                        .with(httpBasic("demo-horizonte", "test-password-secondary"))
+                        .cookie(otherCookie).header("X-XSRF-TOKEN", otherCookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"RESOLVED\"}"))
                 .andExpect(status().isNotFound());
 
@@ -68,8 +70,10 @@ class CaseIntegrationTests {
     @Test
     void statusTransitionsAreAtomicAndLeaveAnAuditTrail() throws Exception {
         String id = create("demo", "test-password", "Pedido de alteração de reserva");
+        Cookie cookie = csrfCookie("demo", "test-password");
         mvc.perform(patch("/api/v1/cases/{id}/status", id)
-                        .with(httpBasic("demo", "test-password")).with(csrf())
+                        .with(httpBasic("demo", "test-password"))
+                        .cookie(cookie).header("X-XSRF-TOKEN", cookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"IN_PROGRESS\",\"note\":\"Verificando pedido\"}"))
                 .andExpect(status().isOk())
@@ -78,7 +82,8 @@ class CaseIntegrationTests {
                 .andExpect(jsonPath("$.events[1].fromStatus").value("OPEN"))
                 .andExpect(jsonPath("$.events[1].note").value("Verificando pedido"));
         mvc.perform(patch("/api/v1/cases/{id}/status", id)
-                        .with(httpBasic("demo", "test-password")).with(csrf())
+                        .with(httpBasic("demo", "test-password"))
+                        .cookie(cookie).header("X-XSRF-TOKEN", cookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"OPEN\"}"))
                 .andExpect(status().isConflict());
         mvc.perform(get("/api/v1/cases/{id}", id).with(httpBasic("demo", "test-password")))
@@ -91,7 +96,9 @@ class CaseIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"Teste\",\"description\":\"Descrição válida para teste\"}"))
                 .andExpect(status().isForbidden());
-        mvc.perform(post("/api/v1/cases").with(httpBasic("demo", "test-password")).with(csrf())
+        Cookie cookie = csrfCookie("demo", "test-password");
+        mvc.perform(post("/api/v1/cases").with(httpBasic("demo", "test-password"))
+                        .cookie(cookie).header("X-XSRF-TOKEN", cookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"a\",\"description\":\"curta\"}"))
                 .andExpect(status().isBadRequest());
@@ -101,10 +108,7 @@ class CaseIntegrationTests {
 
     @Test
     void browserCookieAndHeaderAllowWriting() throws Exception {
-        var response = mvc.perform(get("/api/v1/me/csrf").with(httpBasic("demo", "test-password")))
-                .andExpect(status().isOk()).andReturn().getResponse();
-        var cookie = response.getCookie("XSRF-TOKEN");
-        assertThat(cookie).isNotNull();
+        Cookie cookie = csrfCookie("demo", "test-password");
         mvc.perform(post("/api/v1/cases").with(httpBasic("demo", "test-password"))
                         .cookie(cookie).header("X-XSRF-TOKEN", cookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -113,10 +117,20 @@ class CaseIntegrationTests {
     }
 
     private String create(String username, String password, String title) throws Exception {
-        var result = mvc.perform(post("/api/v1/cases").with(httpBasic(username, password)).with(csrf())
+        Cookie cookie = csrfCookie(username, password);
+        var result = mvc.perform(post("/api/v1/cases").with(httpBasic(username, password))
+                        .cookie(cookie).header("X-XSRF-TOKEN", cookie.getValue())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"" + title + "\",\"description\":\"Solicitação de demonstração para os testes.\"}"))
                 .andExpect(status().isCreated()).andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.id");
+    }
+
+    private Cookie csrfCookie(String username, String password) throws Exception {
+        var response = mvc.perform(get("/api/v1/me/csrf").with(httpBasic(username, password)))
+                .andExpect(status().isOk()).andReturn().getResponse();
+        Cookie cookie = response.getCookie("XSRF-TOKEN");
+        assertThat(cookie).isNotNull();
+        return cookie;
     }
 }
