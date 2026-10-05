@@ -2,7 +2,7 @@
 
 Uma aplicação de portfólio para acompanhar casos de suporte e propor rascunhos de resolução fundamentados em documentos, para revisão humana.
 
-**Estado atual: fase 5 — avaliação reproduzível e testes de segurança.** Além de casos, recuperação, propostas e revisão humana, a CI executa um corpus sintético para verificar abstenção, fontes, citações, resistência a instruções em documentos e isolamento por organização. Um runner separado permite avaliar o Ollama real em banco descartável; métricas determinísticas com modelos falsos não representam qualidade semântica real.
+**Estado atual: fase 6 — demonstração interativa implementada; publicação condicionada à configuração do GitHub Pages.** Além de casos, recuperação, propostas e revisão humana, a CI executa um corpus sintético para verificar abstenção, fontes, citações, resistência a instruções em documentos e isolamento por organização. Um runner separado permite avaliar o Ollama real em banco descartável; métricas determinísticas com modelos falsos não representam qualidade semântica real.
 
 ## O que existe agora
 
@@ -86,6 +86,12 @@ evaluation/run_live.py  # Avaliação real opt-in em banco descartável
 compose.yaml           # PostgreSQL/pgvector local
 .github/workflows/ci.yml
 ```
+
+## Demonstração interativa e métricas
+
+A pasta `demo/` contém uma apresentação interativa com dados fictícios, respostas pré-definidas e revisão humana simulada. Não chama o Ollama nem a API; o fluxo real continua disponível na aplicação Java/Angular. A CI testa as interações e o layout móvel, gera o pacote `public-demo` e inclui métricas sintéticas da mesma execução com SHA e link de origem. Resultados reais do Ollama ainda não estão publicados.
+
+Consulte [o roteiro, os testes e a configuração de publicação](demo/README.md). O deploy no GitHub Pages fica desabilitado até configurar o serviço e a variável `DEMO_PUBLISH=true`; o pacote pode ser baixado nos artefatos da CI. Depois de ativado, só é publicado após sucesso dos testes e builds na `main`.
 
 ## Como executar localmente
 
@@ -219,6 +225,7 @@ O corpus inicial cobre respostas conhecidas, informação ausente e injeção de
 - [x] Fase 3: propostas de resolução com fontes.
 - [x] Fase 4: revisão humana e trilha de decisões.
 - [x] Fase 5: corpus sintético, gates de segurança e runner real opt-in.
-- [ ] Fase 6: demonstração pública com dados fictícios e métricas.
+- [x] Fase 6 (implementação): demonstração interativa com dados fictícios, métricas rastreáveis da CI, testes e pacote público.
+- [ ] Fase 6 (publicação): configurar GitHub Pages, ativar `DEMO_PUBLISH` e confirmar a URL publicada.
 
 Este repositório é público e usa somente exemplos fictícios. Não adicione dados de clientes, senhas, tokens nem instruções internas de trabalho.
