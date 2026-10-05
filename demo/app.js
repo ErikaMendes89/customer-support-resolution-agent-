@@ -31,7 +31,7 @@ async function metrics(){
   try{
     const response=await fetch('./metrics.json');if(!response.ok)throw new Error('Relatório indisponível');const m=await response.json();
     if(m.liveModel!==false||!m.provenance||!Number.isInteger(m.cases)||m.cases<1)throw new Error('Relatório inválido');
-    const specs=[['statusAccuracy','Estados esperados'],['sourcePresenceAccuracy','Presença de fontes'],['supportedTermAccuracy','Termo esperado']];
+    const specs=[['statusAccuracy','Estados esperados'],['sourcePresenceAccuracy','Presença de fontes'],['supportedTermAccuracy','Termo esperado (1 caso)']];
     const cards=specs.map(([key,label])=>{if(typeof m[key]!=='number'||!Number.isFinite(m[key])||m[key]<0||m[key]>1)throw new Error('Métrica inválida');const card=document.createElement('div');card.className='metric';const n=document.createElement('strong');n.textContent=(m[key]*100).toFixed(0)+'%';const text=document.createElement('span');text.textContent=label;card.append(n,text);return card;});
     $('metric-cards').replaceChildren(...cards);
     const p=$('metric-provenance');p.textContent=m.cases+' cenários · '+m.dataset+' · modelos simulados · commit '+m.provenance.commit.slice(0,7)+' · ';const a=document.createElement('a');const u=new URL(m.provenance.runUrl);if(u.origin!=='https://github.com'||!u.pathname.startsWith('/ErikaMendes89/customer-support-resolution-agent-/actions/runs/'))throw new Error('Origem inválida');a.href=u.href;a.textContent='Ver execução da CI';p.append(a);

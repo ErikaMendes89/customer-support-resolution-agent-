@@ -25,8 +25,10 @@ const assert=require('node:assert/strict');
     await page.getByText('Métricas ainda não publicadas ou indisponíveis.',{exact:false}).waitFor();
     await page.route('**/metrics.json',route=>route.fulfill({json:{dataset:'synthetic-eval-v1',cases:6,liveModel:false,statusAccuracy:.5,sourcePresenceAccuracy:1,supportedTermAccuracy:1,provenance:{commit:'a'.repeat(40),runUrl:'https://github.com/ErikaMendes89/customer-support-resolution-agent-/actions/runs/123'}}}));
     await page.reload();await page.locator('.metric').first().waitFor();assert.equal(await page.locator('.metric strong').first().innerText(),'50%');
-    await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    await page.setViewportSize({width:390,height:844});
     await page.screenshot({path:process.env.DEMO_SCREENSHOT||'/tmp/support-demo.png',fullPage:true});
+    const overflow=await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth).map(e=>({tag:e.tagName,id:e.id,className:e.className,right:e.getBoundingClientRect().right})));
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,JSON.stringify(overflow));
     assert.deepEqual(errors,[]);console.log('Browser demo checks passed');
   }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exit(1);});
