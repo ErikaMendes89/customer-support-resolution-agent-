@@ -56,3 +56,71 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.15.0'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: node --test demo/model.test.mjs
+      - run: python3 -m unittest discover -s demo -p 'test_*.py'
+      - name: Install browser test tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/demo-browser" playwright@1.56.1
+          "$RUNNER_TEMP/demo-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Check demo interactions and mobile layout
+        env:
+          NODE_PATH: ${{ runner.temp }}/demo-browser/node_modules
+          DEMO_SCREENSHOT: demo-screenshot.png
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/demo-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          node demo/browser_test.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: demo-screenshot
+          path: demo-screenshot.png
+  demo-package:
+    needs: [backend, frontend, demo]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: synthetic-evaluation-summary
+          path: /tmp/evaluation
+      - name: Build traceable metrics
+        run: python3 demo/build_metrics.py /tmp/evaluation/evaluation-summary.json demo/metrics.json --commit "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Package public demonstration
+        run: |
+          mkdir -p public-demo
+          cp demo/index.html demo/style.css demo/app.js demo/model.mjs demo/metrics.json public-demo/
+          touch public-demo/.nojekyll
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-demo
+          path: public-demo
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main' && vars.DEMO_PUBLISH == 'true'
+        with:
+          path: public-demo
+  deploy-demo:
+    if: github.ref == 'refs/heads/main' && vars.DEMO_PUBLISH == 'true'
+    needs: demo-package
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish validated demo
+        id: deployment
+        uses: actions/deploy-pages@v4

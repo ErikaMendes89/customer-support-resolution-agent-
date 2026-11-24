@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Demonstração do agente de suporte de Erika Mendes: fontes, abstenção e revisão humana.">
+  <title>Support Agent · Erika Mendes</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <header><a class="brand" href="./">Support<span>Agent</span></a><nav aria-label="Navegação"><a href="#workspace">Experimentar</a><a href="#metrics">Métricas</a><a href="https://github.com/ErikaMendes89/customer-support-resolution-agent-">Código ↗</a></nav></header>
+  <main>
+    <section class="hero"><p class="eyebrow">PORTFÓLIO / ERIKA MENDES</p><h1>Uma resposta precisa<br>de uma <em>boa fonte.</em></h1><p class="intro">Um agente de suporte que recupera evidências, reconhece seus limites e deixa a decisão com você.</p><a class="primary link-button" href="#workspace">Explorar a demonstração ↓</a><p class="disclosure">Simulação interativa com dados fictícios e respostas pré-definidas. Não chama uma IA nem conecta à API. Suas decisões ficam apenas nesta sessão.</p></section>
+    <section id="workspace" aria-labelledby="workspace-title">
+      <div class="section-heading"><div><p class="eyebrow">01 / FLUXO DE SUPORTE</p><h2 id="workspace-title">Da solicitação à revisão.</h2></div><button id="reset" type="button">Reiniciar sessão</button></div>
+      <div class="workspace">
+        <aside><label for="organization">Organização fictícia</label><select id="organization"><option value="aurora">Aurora</option><option value="horizonte">Horizonte</option></select><p class="small">Explore cenários separados por organização. O isolamento real é testado no backend.</p><div id="case-list" class="case-list" aria-label="Casos de suporte"></div></aside>
+        <article class="case-detail"><p id="case-id" class="eyebrow"></p><h3 id="case-title"></h3><p id="case-description"></p><button id="generate" type="button" class="primary">Mostrar proposta simulada</button>
+          <section id="proposal" hidden><div class="proposal-heading"><h4>Proposta de resolução</h4><span id="proposal-status" class="badge"></span></div><p id="answer" class="answer"></p><h4>Fontes preservadas</h4><div id="sources"></div>
+            <form id="review-form"><label for="decision">Sua decisão</label><select id="decision"><option value="APPROVED">Aprovar</option><option value="EDITED">Editar</option><option value="REJECTED">Rejeitar</option></select><div id="edit-fields" hidden><label for="edited-answer">Resposta editada (mantenha [S1])</label><textarea id="edited-answer" rows="4" maxlength="6000"></textarea></div><div id="note-fields" hidden><label for="note">Justificativa obrigatória</label><textarea id="note" rows="2" maxlength="2000"></textarea></div><button type="submit" class="primary">Registrar decisão simulada</button></form>
+            <p id="feedback" role="status" aria-live="polite"></p><div id="history"></div>
+          </section>
+        </article>
+      </div>
+    </section>
+    <section id="metrics" aria-labelledby="metrics-title"><p class="eyebrow">02 / EVIDÊNCIA REPRODUZÍVEL</p><h2 id="metrics-title">O que foi medido.</h2><p>Seis cenários sintéticos verificam estados, presença de fontes e um termo esperado usando modelos determinísticos. Esses resultados não medem a qualidade semântica do Ollama real.</p><div id="metric-cards" class="metrics" aria-live="polite"><p>Carregando relatório da CI…</p></div><p id="metric-provenance" class="small"></p><p class="small">Avaliação real: ainda sem resultados publicados. O runner local mede checagens aproximadas e latência; a fidelidade das respostas exige leitura humana.</p><a href="https://github.com/ErikaMendes89/customer-support-resolution-agent-/blob/main/evaluation/run_live.py">Consultar o runner de avaliação real ↗</a></section>
+    <section class="architecture"><p class="eyebrow">03 / APLICAÇÃO COMPLETA</p><h2>Construída para rastrear decisões.</h2><div class="stack"><p><strong>Java + Spring Boot</strong><br>Regras, transações e validação das propostas.</p><p><strong>Angular + PostgreSQL</strong><br>Casos, documentos e histórico por organização.</p><p><strong>Ollama + pgvector</strong><br>Busca vetorial e geração local com referências.</p></div><p>A aplicação completa gera propostas com modelos locais. Esta página apresenta seu fluxo com exemplos fixos, sem credenciais, uploads ou ações externas.</p></section>
+  </main><footer>Erika Mendes · Engenharia de software e IA <a href="https://github.com/ErikaMendes89">GitHub ↗</a></footer>
+</body></html>
